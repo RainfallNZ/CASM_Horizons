@@ -502,13 +502,7 @@ names(DiffuseInputsSiteExtendedTable) <- c("Landuse","LUC","Zone_Code","Polygon 
 
 
 Create a plot
-```{r}
-# plot(SubZonePolygons, col = "transparent")
-# plot(CompleteSpatialNetwork, col = "blue", add=TRUE)
-# plot(PointSourceSitesSpatial, add=TRUE, col = "red")
-#plot(MeasurementSitesSpatial, add=TRUE, col = "black")
-```
-Or another plot
+
 ```{r}
 # #Put all the spatial data in a list for simplicity
 # SpatialData <- list(MeasurementSites=MeasurementSitesSpatial, PointSourceSites=PointSourceSitesSpatial,
