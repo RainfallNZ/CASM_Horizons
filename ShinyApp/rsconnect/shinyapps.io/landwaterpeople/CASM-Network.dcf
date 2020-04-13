@@ -1,0 +1,12 @@
+name: CASM-Network
+title: CASM-Network
+username:
+account: landwaterpeople
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1797784
+bundleId: 2957040
+url: https://landwaterpeople.shinyapps.io/CASM-Network/
+when: 1585796231.28572
+asMultiple: FALSE
+asStatic: FALSE
