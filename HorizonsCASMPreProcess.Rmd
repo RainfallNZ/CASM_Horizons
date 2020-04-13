@@ -107,8 +107,12 @@ ZoneLanduseLUCCode_To_ClassLUTFileName <- "ZoneLanduseLUCCode_To_ClassLUT.csv"
 TargetZonesFileName <- "Target_subzones"
 
 LeachRateLimitsFileName              <- "Table14_2.csv"
+```
 
-source(file.path(ProjectDirectory,"R/CASM-PrePostProcessor/CASM_PrePostProcessorFunctions.R"))
+
+Load the CASM generic processing functions
+```{r}
+source(file.path(ProjectDirectory,"../CASM-PrePostProcessor/CASM_PrePostProcessorFunctions.R"))
 ```
 
 Find the total area of each Climate-PAW class within all the target Dairy-LUC combinations, and all the Irrigted Sheep and Beef-LUC combinations.
