@@ -387,6 +387,9 @@ ManagementSubZoneOutletReaches <- lapply(seq_along(SubZonePolygons$Zone_Code), f
 })
 #Convert the list into a dataframe
 ManagementSubZoneOutletReachesDF <- do.call(rbind,ManagementSubZoneOutletReaches)
+
+#Save for later if required
+#write.table(ManagementSubZoneOutletReachesDF, file.path(DataDirectory,"WaterManagementSubZone_LowestREC2nzsegment.csv"),sep=",",row.names = #FALSE,quote=FALSE,col.names=c("WMSZ","nzsegment"))
 ```
 
 
