@@ -12,9 +12,13 @@ Some functions
 
 
 #Create scenario leach rate rasters from Horizon's Plan change 2 Table 14.2, from the raster of the Sub-management Zone-Land Use-LUC (and the look up table which #converts the class numbers to descriptions), and the "current" MPI-based leach rate raster
+#Note that the following is the filename on Tims Computer for the MPIPredictor raster brick
+MPIPredictorRasterFileName <- "PredictorRaster 250x250.tif"
 
-ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_Leach_Table = LeachRateLimits, ZoneLanduseLUCRasterFile = ZoneLanduseLUCRasterFileName, ZoneLanduseLUCCode_To_ClassLUTFile = ZoneLanduseLUCCode_To_ClassLUTFileName, plan = "PC2", year = 20) {
-  
+ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_Leach_Table = LeachRateLimits, ZoneLanduseLUCRasterFile = ZoneLanduseLUCRasterFileName, ZoneLanduseLUCCode_To_ClassLUTFile = ZoneLanduseLUCCode_To_ClassLUTFileName,
+                                     plan = "PC2", year = 20,
+                                    Intensive = FALSE,
+                                    MPIPredictorRasterFile = MPIPredictorRasterFileName) {
   #Load the ZoneLanduseLUC raster and the look up table that relates the raster's codes to a combined-class name
   ZoneLanduseLUCRaster <- raster(file.path(GISDataDirectory,ZoneLanduseLUCRasterFile))
   ZoneLanduseLUC_LUT <- read.table(file.path(DataDirectory,ZoneLanduseLUCCode_To_ClassLUTFile),sep=",",header=TRUE)
@@ -37,15 +41,26 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_L
   LeachRateLUT <- matrix(ncol=2,c(1:8,t(LUC_To_Leach_Table[LUC_To_Leach_Table$Year == year & LUC_To_Leach_Table$Plan == plan,c(3:10)])))
   AreaWideScenarioLeachRates <- reclassify(LUCRaster, LeachRateLUT)
 
-  #Turn the ZoneLanduseLUCRaster into an "intensive farming" mask, based on rules as to what constitutes intensive farming
-  IntensiveFarmingMask <- !LandUseRaster %in% which(levels(ZoneLanduseLUC_LUT$Landuse) %in% c("Native Cover","Water Body"))
+  if (Intensive) {
+    #Load the MPI Leach rate predictor raster brick which contains the irrigated area data, needed to determine what sheep and beef land should be classed as intensive.
+  IrrigatedRaster <- stack(file.path(GISDataDirectory,MPIPredictorRasterFileName))[[5]]
+      #Turn the ZoneLanduseLUCRaster into an "intensive farming" mask, based on rules as to what constitutes intensive farming
+  IntensiveFarmingMask <- (LandUseRaster %in% which(levels(ZoneLanduseLUC_LUT$Landuse) %in% c("Dairy","Cropping","Horticulture-Veg","Horticulture-Other"))) |
+    (LandUseRaster %in% which(levels(ZoneLanduseLUC_LUT$Landuse) %in% c("Sheep and/or Beef")) & IrrigatedRaster)
   
   #For the intensive farming areas find the Scenario leach rates, otherwise, keep using the MPI leach rates
   ScenarioLeachRate <- AreaWideScenarioLeachRates * IntensiveFarmingMask + CurrentLeachRateRaster * !IntensiveFarmingMask
   
+    #Export a raster stack for exploration in QGIS
+  ScenarioRasters <- raster::stack(x=list(Scenario=ScenarioLeachRate,ScenarioAll=AreaWideScenarioLeachRates,Mask=IntensiveFarmingMask,MPI=CurrentLeachRateRaster,LUC=LUCRaster,Landuse=LandUseRaster,Irrigation=IrrigatedRaster))
+  } else {
+    ScenarioLeachRate <- AreaWideScenarioLeachRates
+    #Export a raster stack for exploration in QGIS without the intensive landuse mask or the irrigation raster
+  ScenarioRasters <- raster::stack(x=list(Scenario=ScenarioLeachRate,ScenarioAll=AreaWideScenarioLeachRates,MPI=CurrentLeachRateRaster,LUC=LUCRaster,Landuse=LandUseRaster))
+  }
   
-  #Export a raster stack for exploration in QGIS
-  ScenarioRasters <- raster::stack(x=list(Scenario=ScenarioLeachRate,ScenarioAll=AreaWideScenarioLeachRates,Mask=IntensiveFarmingMask,MPI=CurrentLeachRateRaster,LUC=LUCRaster,Landuse=LandUseRaster))
+  
+
   writeRaster(ScenarioRasters,file.path(GISDataDirectory,"ScenarioLeachRasters.tif"),overwrite=TRUE)
   
   
@@ -305,6 +320,11 @@ SubZoneLanduseLUCSpatial <- spTransform(SubZoneLanduseLUCSpatial,CRS("+init=epsg
 #Load the leachingrate data if it exists
 LeachRate <- raster(file.path(GISDataDirectory,LeachRateRasterFileName))
 
+#Or get it from one of the scenario leachrate rasters I have created. 
+LeachRate <- stack(file.path(GISDataDirectory,LeachRateRasterFileName))[[1]]
+LeachRate <- stack(file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseTable4-2.tif"))[[1]]
+#LeachRate <- stack(file.path(GISDataDirectory,"ScenarioLeachRastersFullTable4-2.tif"))[[1]]
+
 #**********************************************************
 #If the leach rate raster file is missing or needs to be re-created then use the following:
 #Takes 5 minutes at 250 m
@@ -317,7 +337,9 @@ LeachRate <- raster(file.path(GISDataDirectory,LeachRateRasterFileName))
 #******************************************************************
 
 #Load the ZoneLanduseLUC raster if it exists
-ZoneLanduseLUCRaster <- raster(file.path(GISDataDirectory,ZoneLanduseLUCRasterFileName))
+ZoneLanduseLUCRaster <- raster(file.path(GISDataDirectory,ZoneLanduseLUCRasterFileName), RAT=TRUE)
+#Annoyingly the attribute table has a bonus line at the begining when loaded from the tif, so I've removed it to save pain later on
+levels(ZoneLanduseLUCRaster)[[1]] <- levels(ZoneLanduseLUCRaster)[[1]][-1,]
 #**********************************************************
 ##If the ZoneLanduseLUCRaster raster file is missing or needs to be re-created then use the following:
 ##Takes 5 minutes at 250 m
@@ -481,7 +503,7 @@ DiffuseInputsSiteExtendedTable <- SubZoneLanduseLUCSpatial@data
 DiffuseInputsSiteExtendedTable[,c("TribLocn","TribName")] <- DiffuseInputsSiteTable[match(SubZoneLanduseLUCSpatial@data$Zone_Code, DiffuseInputsSiteTable$CASMNodeName),c("TribLocn","TribName")]
 
 #Add the leach rates
-DiffuseLeachRateData <- DiffuseLoadTableCreator(ZoneLanduseLUCRaster = ,LeachRates = LeachRate)
+DiffuseLeachRateData <- DiffuseLoadTableCreator(ZoneLanduseLUCRaster = ZoneLanduseLUCRaster,LeachRates = LeachRate)
 DiffuseInputsSiteExtendedTable$"LeachRates"<- DiffuseLeachRateData$LeachRate[match(DiffuseInputsSiteExtendedTable$CombinedClassName,DiffuseLeachRateData$CombinedClassName)]
 
 #Need to use raster-calculated area rather than polygon areas
@@ -594,7 +616,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_IntenseLanduseTable14-2_20200513.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
