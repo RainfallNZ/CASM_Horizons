@@ -110,7 +110,12 @@ CASMStreamNetworkFile              <- "CASM-StreamNetwork"
 
 #Load the various raster files
 PredictorRasterFile                <- "PredictorRaster 250x250.tif"
+#Baseline MPI leach rates
 LeachRateRasterFile                <- "LeachRateRaster 250x250.tif"
+#Various scenario leach rates
+#LeachRateRasterFile                <- "ScenarioLeachRasters_IntensiveLanduseTable4-2.tif"
+#LeachRateRasterFile                <- "ScenarioLeachRastersFullTable4-2.tif"
+
 ZoneLanduseLUCRasterFile           <- "ZoneLanduseLUCRaster 250 x 250.tif"
 
 #Load the various text files
@@ -299,15 +304,8 @@ OutletReachNames <- read.csv(file.path(DataDirectory,OutletReachNamesFile), stri
 SubZoneLanduseLUCSpatial <- readOGR(file.path(GISDataDirectory,SubZoneLanduseLUCShapeFile),layer=SubZoneLanduseLUCShapeFile)
 SubZoneLanduseLUCSpatial <- spTransform(SubZoneLanduseLUCSpatial,CRS("+init=epsg:2193") )
 
-
-
 #Load the leachingrate data if it exists
-LeachRate <- raster(file.path(GISDataDirectory,LeachRateRasterFile))
-
-#Or get it from one of the scenario leachrate rasters I have created. 
 LeachRate <- stack(file.path(GISDataDirectory,LeachRateRasterFile))[[1]]
-#LeachRate <- stack(file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseTable4-2.tif"))[[1]]
-#LeachRate <- stack(file.path(GISDataDirectory,"ScenarioLeachRastersFullTable4-2.tif"))[[1]]
 
 #**********************************************************
 #If the leach rate raster file is missing or needs to be re-created then use the following:
