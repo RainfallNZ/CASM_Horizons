@@ -68,6 +68,8 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_L
   }
 ```
 
+
+
 Set directories and data file names.
 
 Four main type of files exist:
@@ -125,6 +127,9 @@ MPIClassNameLUTFile                <- "MPI_LookupNamesNLosses_v5.csv"
 LanduseToLanduseLUTFile            <- "LanduseToLanduseLookUpTable.csv"
 ZoneLanduseLUCCode_To_ClassLUTFile <- "ZoneLanduseLUCCode_To_ClassLUT.csv"
 LeachRateLimitsFileName            <- "Table14_2.csv"
+
+#And an excel spreadsheet from Horizons
+HorizonsConsentedLeachRatesFile    <- "20200417_Master dairy farm data_Working Document – For Purposes of Scenario Modelling.xlsx"
 
 ```
 
@@ -333,6 +338,70 @@ levels(ZoneLanduseLUCRaster)[[1]] <- levels(ZoneLanduseLUCRaster)[[1]][-1,]
 #writeRaster(LeachRate,file.path(GISDataDirectory,LeachRateRasterFile),overwrite=TRUE)
 #******************************************************************
 ```
+
+Some scenario data preparation.
+Chunk  to read in the Horizons property attributes table and to pare it down to useful stuff.
+```{r}
+#Load a couple of special libraries
+if (!require("openxlsx")) install.packages("openxlsx"); library(openxlsx) #needed for reading excel spreadsheet
+if (!require("tidyr")) install.packages("tidyr"); library(tidyr)  #has the "pivot_long" function
+
+HorizonsPropertyData <- read.xlsx(file.path(DataDirectory,HorizonsConsentedLeachRatesFile),sheet = "Dairy farms - target catchments", startRow = 3)
+
+#Add some descriptive column names
+LUCAreaColumnNames <- paste0("AreaInLUC",seq(1:8))
+names(HorizonsPropertyData)[23:30] <- LUCAreaColumnNames
+
+#Pare it down to just the data that is needed
+HorizonsPropertyData <- HorizonsPropertyData[,c(3,23:30,41:46)]
+
+#there are some properties that are in multiple sub-management zones. Find them,divide them and share the LUC areas amongst the divided parts, adding the extra divided parts to the end of the master table
+{
+  MultiSubManagementZoneProperties <- which(grepl(",",HorizonsPropertyData$Water.Management.Subzone,fixed=TRUE))
+  
+  #Work through each of these mulit-zone properties and divide them into single sub management zones rows
+  for(MultiSMZIndex in MultiSubManagementZoneProperties){
+    #Get the multi-sub-zones
+    MultiSubZones <- unlist(strsplit(HorizonsPropertyData$Water.Management.Subzone[MultiSMZIndex], ","))
+    #Clear them of whitespace
+    MultiSubZones <- gsub(" ","",MultiSubZones)
+    NoOfSMZs <- length(MultiSubZones)
+    #Give the existing row the first name
+    HorizonsPropertyData$Water.Management.Subzone[MultiSMZIndex] <- MultiSubZones[1]
+    
+    #Divide the LUC areas by the number of SMZ's
+    HorizonsPropertyData[MultiSMZIndex,LUCAreaColumnNames] <- 
+      HorizonsPropertyData[MultiSMZIndex,LUCAreaColumnNames] / NoOfSMZs
+    #Duplicate this for each of the other SMZ's but change the SMZ, and tack it on the end of the data
+    for (SMZIndex in seq(from=2,to=NoOfSMZs)){
+      NewRow <- HorizonsPropertyData[MultiSMZIndex,]
+      NewRow$Water.Management.Subzone <- MultiSubZones[SMZIndex]
+      HorizonsPropertyData <- rbind(HorizonsPropertyData,NewRow)
+    }
+  }
+}
+
+#Go from wide to long, converting the LUC_area columns to just area, with extra rows for each LUC
+library(tidyr)
+data_long <- pivot_longer(HorizonsPropertyData,cols=starts_with("AreaInLUC"),names_to="LUC",names_prefix = "AreaInLUC",values_to="hectares")
+#Remove all the rows with no area
+data_long <- data_long[data_long$hectares > 0,]
+
+#Create a combined sub management zone, landuse, LUC name
+data_long$CombinedName <- paste0(data_long$Water.Management.Subzone,"-Dairy-",data_long$LUC)
+
+#Calculate the diffuse load for each "Combined name" class for the scenario of interest. (This could be ammended to automagically work through each scenario)
+ScenarioColumnOfInterest <- "Consented"
+data_long$Load <- data_long$hectares*data_long[,ScenarioColumnOfInterest]
+
+#Sum the LUC areas and loads for each sub management zone, but don't sum the areas for the properties without leach data (e.g. non-consented properties when considering consented leach rates)
+CombinedClasses  <- aggregate(data_long[,c("hectares","Load")]*!is.na(data_long$Load), by = list(data_long$CombinedName), FUN = sum, na.rm=TRUE)
+#rename the aggregated column names
+names(CombinedClasses) <- c("CASMNodeNames","Area_hectares","Load")
+CombinedClasses$LeachRates <- CombinedClasses$Load / CombinedClasses$Area_hectares
+```
+
+
 I need to analyse each management sub zone to determine how much area (in hectares) each landuse-LUC combination takes up.
 Unfortunately there is a decrepancy between provided data for the sub management zones. Upon query to Horizons (See email exchange between Ton Snelder and Stephen Collins- Horizons on 17th Feb 2020), the zones within the "Water_Management_Subzones" ESRI shapefile trumps those within the "Landuse_LUC Original". So the land use and LUC is extracted from one file, then intersected with the other.This proved to be problematic because both files had topology errors, primarily small circles in the boundaries, so the files had to be "cleaned". This proved to be most effectively done in QGIS. They were then intersected in QGIS, and then aggregated by RegiScLand, LUC_CLASS and Zone_Code in R (see below) before being saved as a file so that the painfull process doesn't have to be repeated.
 ```{r}
@@ -510,6 +579,57 @@ for(SubZoneIndex in seq_along(UniqueSubZones)) {
 names(DiffuseInputsSiteExtendedTable) <- c("Landuse","LUC","Zone_Code","Polygon Land Area (ha)","Node Name","Original location (km)", "Receiving Stream","Export Coeff (kg/ha/yr)","Land Area (ha)","Discharge Location (km)")
 
 ```
+Adjust the diffuse inputs for any scenario data. This is prepared earlier in a data rame called "combinedclasses".
+Adjustment is done for each node class that exists in the "CombinedClasses" dataframe.
+The leach load is found for that part of the node's area that is not accounted for in the "combinedclasses". This is added to the "Combinedclasses" load, and the total is divided by the node area to return it to a rate.
+*****Only run this chunk if you want special scenario stuff output********
+
+```{r}
+CombinedClasses$TotalNodeArea <- DiffuseInputsSiteExtendedTable$'Land Area (ha)'[match(CombinedClasses$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
+CombinedClasses$NodeAveLeachRate <- DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"[match(CombinedClasses$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
+CombinedClasses$AreaDiff <- CombinedClasses$TotalNodeArea - CombinedClasses$Area_hectares
+#Make sure the difference between the node area and the property area is not negative.
+#If it is, then assume that the land is from a "Sheep and/or Beef" land use (i.e. a new conversion or misclassified land)
+#Work through each and fix up.
+
+OverAreaPropertyIndices <- which(CombinedClasses$AreaDiff < 0)
+
+for(OverAreaPropertyIndex in OverAreaPropertyIndices){
+  #Duplicate the property details
+  DuplicateProperty <- CombinedClasses[OverAreaPropertyIndex,]
+  #Convert the NodeName to be a Sheep and/or Beef one
+  DuplicateProperty$CASMNodeNames <- sub("Dairy","Sheep and/or Beef",DuplicateProperty$CASMNodeNames)
+  #Update the TotalNodeArea and NodeAveLeachRate from the original DiffuseInput data
+  DuplicateProperty$TotalNodeArea <- DiffuseInputsSiteExtendedTable$'Land Area (ha)'[match(DuplicateProperty$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
+  DuplicateProperty$NodeAveLeachRate <- DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"[match(DuplicateProperty$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
+  #Update the Area_hectares attribute with the left overs from the dairy area comparison
+  DuplicateProperty$Area_hectares <- DuplicateProperty$AreaDiff * -1
+  #Double check that we haven't still run out of area
+  DuplicateProperty$AreaDiff <- DuplicateProperty$TotalNodeArea - DuplicateProperty$Area_hectares
+  
+  #Any further over areas put down to misclassifications that can't be resolved, so adjust the property areas for them to match the node total area
+  DuplicateProperty$AreaDiff[DuplicateProperty$AreaDiff < 0] <- 0
+  DuplicateProperty$Area_hectares[DuplicateProperty$AreaDiff == 0] <- DuplicateProperty$TotalNodeArea
+  #Tack the duplicate onto the end
+  CombinedClasses <- rbind(CombinedClasses,DuplicateProperty)
+}
+
+#Now get the total load and convert back to a rate
+CombinedClasses$NewRate <- with(CombinedClasses, (LeachRates * Area_hectares + NodeAveLeachRate * AreaDiff) / TotalNodeArea)
+
+#Check which property node types don't exist in the main table
+ExtraNodeTypes <- unique(CombinedClasses$CASMNodeNames)[which(!unique(CombinedClasses$CASMNodeNames) %in% DiffuseInputsSiteExtendedTable$`Node Name`)]
+
+#...and ditch them!
+CombinedClasses <- CombinedClasses[!CombinedClasses$CASMNodeNames %in% ExtraNodeTypes,]
+
+
+
+#Then use this to update the node's leach rate
+DiffuseInputsSiteExtendedTable$PreScenarioAdjustLeachRate <- DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"
+DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"[match(CombinedClasses$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')] <- CombinedClasses$NewRate
+
+```
 
 
 Create a plot
@@ -598,7 +718,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_check.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_ConsentedScenarioTrial.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
