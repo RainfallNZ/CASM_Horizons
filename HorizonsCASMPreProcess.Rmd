@@ -5,6 +5,8 @@ output: html_notebook
 
 Load libraries
 ```{r}
+if (!require(rgdal)) install.packages("rgdal"); library(rgdal)   
+if (!require(raster)) install.packages("raster"); library(raster)  
 if (!require(devtools)) install.packages("devtools"); library(devtools)                #Needed to load libraries from github
 if (!require(CASMPrePostProcessor)) install_github("rainfallnz/CASMPrePostProcessor"); library(CASMPrePostProcessor)                #Needed to load libraries from github
 ```
@@ -133,11 +135,6 @@ HorizonsConsentedLeachRatesFile    <- "20200417_Master dairy farm data_Working D
 
 ```
 
-
-Load the CASM generic processing functions
-```{r}
-#source(file.path(ProjectDirectory,"../CASM-PrePostProcessor/CASM_PrePostProcessorFunctions.R"))
-```
 
 Find the total area of each Climate-PAW class within all the target Dairy-LUC combinations, and all the Irrigted Sheep and Beef-LUC combinations.
 By Special request from Horizons.
@@ -339,8 +336,13 @@ levels(ZoneLanduseLUCRaster)[[1]] <- levels(ZoneLanduseLUCRaster)[[1]][-1,]
 #******************************************************************
 ```
 
+
+
 Some scenario data preparation.
 Chunk  to read in the Horizons property attributes table and to pare it down to useful stuff.
+****This processing relies on the sub management zones provided in a spreadsheet from Horizons. Unfortunately some of those sub management zones have changed (split). The location information for the farms is available from "Master farm data for PC 2 evidence streams.xlsx within 
+https://harrcons.sharepoint.com/sites/HorizonsPlanChange_2 under Documents/Analysis/LeachingRates
+This location information needs to be used to update some of theses sites' attributes. 
 ```{r}
 #Load a couple of special libraries
 if (!require("openxlsx")) install.packages("openxlsx"); library(openxlsx) #needed for reading excel spreadsheet
@@ -750,5 +752,52 @@ charlie$load_diff_percent <- round(charlie$load_diff / charlie$loads * 100,0)
 print(charlie)
 ```
  
+By Request from Ton, he would like to know the area of each MPI combination, and its N loss
+```{r}
+#Get the MPI Leach rate data
+MPILeachRateRaster <- stack(file.path(GISDataDirectory,LeachRateRasterFile))
+#Get the MPI predictor data
+MPIPredictorRaster <- stack(file.path(GISDataDirectory,PredictorRasterFile))
+
+  #Load MPI lookup table of total nitrogen leaching rates based on climate, land use, PAW, irrigation, irrigable land
+  MPILeachRateLookUpTable<- read.csv(file.path(DataDirectory,MPILeachRateLUTFile))
+  #Check for duplicates!! This has ocurred in the past and caused an error later on which took hours to figure out!
+  MPILeachRateLookUpTable <- MPILeachRateLookUpTable[!duplicated(MPILeachRateLookUpTable[,1:5]),]
+  #concatenate all the predictor class values into a long string to provide a single column to look up.
+  MPILeachRateLookUpTable$CombinedCriteria <- do.call(paste,MPILeachRateLookUpTable[1:5])
+  
+  if(!exists("MPILeachRateLookUpTable")){ MPILeachRateLookUpTable <- read.csv(file.path(DataDirectory,MPILeachRateLUTFile))}
+  
+MPILeachRateLookUpTable$CombinedCriteria <- do.call(paste,MPILeachRateLookUpTable[1:5])
+
+#Convert the raster stack to points
+raspt <- rasterToPoints(MPIPredictorRaster)
+
+#Discard the location columns and turn into a data frame
+PredictorCombinations <- as.data.frame(raspt[,c(3:7)])
+
+#Give the columns their correct names
+names(PredictorCombinations) <- names(MPILeachRateLookUpTable)[1:5]
+
+#Create a single column that combines all the predictor values into a string
+PredictorCombinations$CombinedPredictors <- do.call(paste,PredictorCombinations[1:5])
+
+#Count the number in each unique combination
+CountInEachUniqueCombination <- table(PredictorCombinations$CombinedPredictors)
+
+#Extract the unique combinations from the dimnames attribute of the counts
+UniqueCombinations <- unlist(attr(CountInEachUniqueCombination,"dimnames"), use.names=FALSE)
+
+#Get the N_loss rows that match the unique combinations
+InfoOfInterest <- MPILeachRateLookUpTable[match(UniqueCombinations,MPILeachRateLookUpTable$CombinedCriteria),]
+InfoOfInterest$Count <- as.vector(CountInEachUniqueCombination)
+InfoOfInterest$areaHectares <- InfoOfInterest$Count * 6.25
+
+#Ditch the "CombinedClass" and "ModificationComment" columns
+InfoOfInterest <- subset(InfoOfInterest, select=-c(CombinedClass,ModificationComment))
+
+#Save it
+write.table(InfoOfInterest, file.path(DataDirectory,"MPIClassAreas.csv"),sep=",",row.names = FALSE,quote=FALSE)
+```
 
 
