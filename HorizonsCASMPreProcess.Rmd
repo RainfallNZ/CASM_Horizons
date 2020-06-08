@@ -764,7 +764,7 @@ for(OverAreaPropertyIndex in OverAreaPropertyIndices){
 }
 
 #Now get the total load and convert back to a rate
-CombinedClasses$NewRate <- with(CombinedClasses, (LeachRates * Area_hectares + NodeAveLeachRate * AreaDiff) / TotalNodeArea)
+CombinedClasses$NewRate <- with(CombinedClasses, (LeachRates * Area_hectares + NodeAveLeachRate * pmax(0,AreaDiff)) / TotalNodeArea)
 
 #Check which property node types don't exist in the main table
 ExtraNodeTypes <- unique(CombinedClasses$CASMNodeNames)[which(!unique(CombinedClasses$CASMNodeNames) %in% DiffuseInputsSiteExtendedTable$`Node Name`)]
@@ -829,7 +829,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_IntensiveOperativeTable14_2Year5OrConsentedWithCoxCalibrated.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_2a_IntensiveOperativeTable14_2Year5OrConsentedWithCoxCalibrated.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
