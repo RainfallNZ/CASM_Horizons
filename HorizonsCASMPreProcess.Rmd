@@ -377,12 +377,12 @@ CASMStreamNetworkFile              <- file.path(GISDataDirectory,"CASM-StreamNet
 #Set the various raster file names
 PredictorRasterFile                <- file.path(GISDataDirectory,"PredictorRaster 250x250.tif")
 #Baseline MPI leach rates
-#LeachRateRasterFile                <- file.path(GISDataDirectory,"MPILeachRateRaster 250x250.tif")
+LeachRateRasterFile                <- file.path(GISDataDirectory,"MPILeachRateRaster 250x250.tif")
 #Various scenario leach rates these have already been corrected for the Tim Cox leach rate calibration corrections
 #LeachRateRasterFile                 <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseTable14-2.tif")
 #LeachRateRasterFile                <- file.path(GISDataDirectory,"ScenarioLeachRastersFullTable14-2.tif")
 #LeachRateRasterFile                <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseTable14_2_Year5.tif")
-LeachRateRasterFile                 <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseExistingTable14_2_Year20.tif")
+#LeachRateRasterFile                 <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseExistingTable14_2_Year20.tif")
 #LeachRateRasterFile                 <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseExistingTable14_2_Year5.tif")
 
 ZoneLanduseLUCRasterFile           <- "ZoneLanduseLUCRaster 250 x 250.tif"
@@ -394,6 +394,7 @@ MPIClassNameLUTFile                <- file.path(DataDirectory,"MPI_LookupNamesNL
 LanduseToLanduseLUTFile            <- file.path(DataDirectory,"LanduseToLanduseLookUpTable.csv")
 ZoneLanduseLUCCode_To_ClassLUTFile <- file.path(DataDirectory,"ZoneLanduseLUCCode_To_ClassLUT.csv")
 LeachRateLimitsFileName            <- file.path(DataDirectory,"Table14_2.csv")
+PointSourceSiteFile                <- file.path(DataDirectory,"PointSourcesSummaryPC2_YE2012_04.csv")
 
 #Set some excel spreadsheet names
 HorizonsConsentedLeachRatesFile    <- file.path(DataDirectory,
@@ -401,7 +402,7 @@ HorizonsConsentedLeachRatesFile    <- file.path(DataDirectory,
 CASMCalibrationSummaryFile         <- file.path(DataDirectory,"attenuation summaries.xlsx")  #Provided by Tim Cox, has the node-to-calibrated leachrates relationship for the nodes that he adjusted during calibration
 CASMInputFile                      <- file.path(DataDirectory,"CASM-Inputs_20200513.xlsx")   #A recent "baseline" scenario version, either with or without the Tim Cox corrections
 PointSourceExtraDataFile           <- file.path(DataDirectory,"pointSourcesTN_2012And2017.xlsx")
-
+PointSourceYear                    <- "2012" #This is the default and has been used for everything except for one scenario, The other option is "2017"
 ```
 
 
@@ -445,7 +446,20 @@ LeachRateLimits <- read.table(LeachRateLimitsFileName, sep=",", header=TRUE)
 
 
 #Load the point sources of nitrogen, previously prepared by Caroline Fraser. Unfortunately they don't have nzsgmnt data. note that an error was found for the NZTM.X position of the Fonterra at Pahiatua site. Originally it was 1859554.9 but it should be 1839554.9. This has been corrected on the LWP sharepoint version of the 20200201_HorizonsRiverCriteria.xlsx file, and the Tim Kerr version of the PointSourcesSummaryPC2_YE2012_04.csv file.
-PointSourceSites <- read.csv(file.path(DataDirectory,"PointSourcesSummaryPC2_YE2012_04.csv"))
+#PointSourceSites <- read.csv(PointSourceSiteFile)
+
+#Alternative source of point source data is from a spreadsheet that Ton prepared. This has 2012 and 2017 data. 2012 data are the default data used for calibration and most scenarios unless specified otherwise.
+PointSourceSites <- read.xlsx(PointSourceExtraDataFile, sheet = PointSourceYear)
+#Select the columns of interest
+PointSourceSites <- PointSourceSites[,c("Site.Name","nzsegment","Annual.load.kg/yr")]
+#rename the columns to match those used in the original PointSourceSiteFile "PointSourcesSummaryPC2_YE2012_04.csv"
+PointSourceSites <- rename(PointSourceSites,replace=c("Annual.load.kg/yr" = "TN.kgpy"))
+#Select the rows of interest
+PointSourceSites <- PointSourceSites[!(is.na(PointSourceSites$"TN.kgpy")|PointSourceSites$"TN.kgpy" ==0),]
+
+#Add spatial data, derived from the down coordinate for the REC reach
+PointSourceSites$NZTM.X <- RECReachNetwork$dwncrdX[match(PointSourceSites$nzsegment,RECReachNetwork$nzsgmnt)]
+PointSourceSites$NZTM.Y <- RECReachNetwork$dwncrdY[match(PointSourceSites$nzsegment,RECReachNetwork$nzsgmnt)]
 
 #Create a spatial points object set to NZTM
 PointSourceSitesSpatial <-SpatialPointsDataFrame(coords = PointSourceSites[,c("NZTM.X","NZTM.Y")],
@@ -454,8 +468,8 @@ PointSourceSitesSpatial <-SpatialPointsDataFrame(coords = PointSourceSites[,c("N
 #Find which catchment each point is in
 PointSourceSitesSpatial@data$CASMDomain <- (PointSourceSitesSpatial %over% CASMModelDomains)$CASMModel
 
-#Save a copy for external use
-writeOGR(PointSourceSitesSpatial,dsn = dirname(PointSourceSitesFile),layer=basename(PointSourceSitesFile),driver='ESRI Shapefile',overwrite_layer = TRUE)
+#If needed, save a copy for external use
+#writeOGR(PointSourceSitesSpatial,dsn = dirname(PointSourceSitesFile),layer=basename(PointSourceSitesFile),driver='ESRI Shapefile',overwrite_layer = TRUE)
 
 #Load the subzone polygons
 SubZonePolygons <- readOGR(dsn=dirname(SubZonesFile),layer = basename(SubZonesFile))
@@ -982,7 +996,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario5_Intensive11PctDairyExpanseOperativeTable13_2Year20WithCoxCalibrated.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_2017PointSources_MPICoxCalibrated.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
