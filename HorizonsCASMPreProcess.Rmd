@@ -72,7 +72,7 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_L
 
 
 
-#Function to find the total area of each Climate-Plant Available Water class within the "target" Dairy-Land Use Capability areas, and all the irrigated aheep and beef - land use capability combinations.
+#Function to find the total area of each Climate-Plant Available Water class within the "target" Dairy-Land Use Capability areas, and all the irrigated sheep and beef - land use capability combinations.
 
 TargetZoneAreaFinder <- function(ClimateShapeFile=ClimateShapeFile,
                                  SuZoneLandUseLUCShapeFile=SubZoneLanduseLUCShapeFile,
@@ -237,7 +237,7 @@ write.table(InfoOfInterest, file.path(DataDirectory,"MPIClassAreas.csv"),sep=","
 #The function generates a list of three objects. The first two are single logic items, one for the intial check, one for the second check. The third object in the list is a table of the changed diffuse nodes and the percent amount they have change by
 CASMScenarioInputChecker <- function(CASMCalibratedFile="D:\\Projects\\LWP\\Horizons\\Data\\CASM-Inputs_CoxCalLeach.xlsx", CASMFileToBeChecked="D:\\Projects\\LWP\\Horizons\\Data\\CASM-Inputs_FullTable14.2.xlsx") {
   if (!require("openxlsx")) install.packages("openxlsx"); library(openxlsx) #needed for reading excel spreadsheet
-  
+
   #Read in the sheets of the first file
   Original <- lapply(c(1,2,3,4), function(sheet) {
     read.xlsx(CASMCalibratedFile, sheet = sheet)
@@ -329,6 +329,42 @@ InfoOfInterest <- subset(InfoOfInterest, select=-c(CombinedClass,ModificationCom
 write.table(InfoOfInterest, file.path(DataDirectory,"MPIClassAreas.csv"),sep=",",row.names = FALSE,quote=FALSE)
 }
 
+#Function to adhust the leach rate raster in accordance with a potato-growing scenario.
+#a) Assume all LUC 1 to 3 land had potato growing every fifth year. This is Version = "All"
+#b) Assume all Dairy and Sheep and Beef LUC 1 to 3 land had potato growing. This is Version = "Dairy and SHeep and Beef"
+#This is achieved by finding the locations that meet the criteria, then adjusting their leach rates.
+PotatoLeachRateCreator <- function(CurrentLeachRateRaster = LeachRate, PotatoLeachRate = 46, ZLLRaster = ZoneLanduseLUCRaster, ZoneLanduseLUC_LUTFile = ZoneLanduseLUCCode_To_ClassLUTFile, Version = "All") {
+
+  #Load the ZoneLanduseLUC raster look up table that relates the raster's codes to a combined-class name
+  ZoneLanduseLUC_LUT <- read.table(ZoneLanduseLUC_LUTFile,sep=",",header=TRUE)
+  
+  #Parse the Combined name into its constituent parts
+  ZoneLanduseLUC_LUT$Zone <- as.factor(sub('-.*','',ZoneLanduseLUC_LUT$CombinedClassName))
+  ZoneLanduseLUC_LUT$ZoneNo <- as.numeric(ZoneLanduseLUC_LUT$Zone)
+  ZoneLanduseLUC_LUT$Landuse <- as.factor(sub('.*-(.*)-.*','\\1',ZoneLanduseLUC_LUT$CombinedClassName))
+  ZoneLanduseLUC_LUT$LanduseNo <- as.numeric(ZoneLanduseLUC_LUT$Landuse)                                         
+  ZoneLanduseLUC_LUT$LUC <- as.numeric(sub('.*-','',ZoneLanduseLUC_LUT$CombinedClassName))
+
+  #reclasify ZoneLanduSeLUCRaster based on levels to the constituent parts
+  LandUseRaster <- reclassify(ZLLRaster,as.matrix(ZoneLanduseLUC_LUT[,c('ID','LanduseNo')]))
+  #SMZRaster <- reclassify(ZLLRaster,as.matrix(ZoneLanduseLUC_LUT[,c('ID','ZoneNo')]))
+  LUCRaster <- reclassify(ZLLRaster,as.matrix(ZoneLanduseLUC_LUT[,c('ID','LUC')]))
+  
+  #Find the LUC 1 to 3 areas
+  AreasOfInterest <- LUCRaster <= 3
+  
+  #Limit them to specific land uses, if required
+  DairyLandUseClass <- which(levels(ZoneLanduseLUC_LUT$Landuse) == "Dairy")
+  SAndBLandUseClass <- which(levels(ZoneLanduseLUC_LUT$Landuse) == "Sheep and/or Beef")
+  if (Version == "Dairy and Sheep and Beef") {AreasOfInterest <- AreasOfInterest & 
+    (LandUseRaster == DairyLandUseClass | LandUseRaster == SAndBLandUseClass)}
+  
+  #Recalculate the leach rate using the potato leach rate, for the areas of interest. The assumption is the potatoes are on a 1 in 5 cycle, so the leachrate is adjusted accordingly.
+  NewLeachrates <-  ((CurrentLeachRateRaster * 0.8 + PotatoLeachRate * 0.2) * AreasOfInterest) +  (CurrentLeachRateRaster * !AreasOfInterest)
+
+  return(NewLeachrates)
+}
+
 ```
 
 
@@ -364,7 +400,7 @@ SubZonesFile                       <- file.path(GISDataDirectory,"Water_Manageme
 LanduseLUCShapeFile                <- file.path(GISDataDirectory,"Landuse_LUC Original","Landuse_LUC Original")
 SubZoneLanduseLUCShapeFile         <- file.path(GISDataDirectory,"ZoneLanduseLUC","ZoneLanduseLUC")                   #May be created if necesary
 IrrigatedShapeFile                 <- file.path(GISDataDirectory,"irrigated-land-area-2017-Manawatu","irrigated-land-area-2017-Manawatu")
-IrrigableShapefile                 <- file.path(GISDataDirectory, "IrrigableLand","Irrigable-Horizons")
+IrrigableShapefile                 <- file.path(GISDataDirectory,"IrrigableLand","Irrigable-Horizons")
 PAWShapeFile                       <- file.path(GISDataDirectory,"FSL_Horizons","FSL_Horizons")
 ClimateShapeFile                   <- file.path(GISDataDirectory,"ClimateRegions-Horizon","ClimateRegions-Horizon")
 CASMModelDomainFile                <- file.path(GISDataDirectory,"CASMModelDomains","CASMModelDomains")
@@ -603,7 +639,7 @@ FedFarmValues <- apply(HorizonsPropertyData,1, function(x) {
 })
 
 #Pare it down to just the data that is needed
-HorizonsPropertyData <- HorizonsPropertyData[,c(3,15,23:30,47:58)]
+HorizonsPropertyData <- HorizonsPropertyData[,c(3,15,23:30,47:59)]
 
 #Add on the FedFarmers Scenario
 HorizonsPropertyData$Scenario.8.Fed.Farmers <- FedFarmValues
@@ -658,6 +694,7 @@ data_long$CombinedName <- paste0(data_long$Water.Management.Subzone,"-Dairy-",da
 #ScenarioColumnOfInterest <- "Baseline.Existing.Table.-.Y5"
 #ScenarioColumnOfInterest <- "Base.N.Leaching.(kg.N/ha/yr)"
 ScenarioColumnOfInterest <- "Scenario.8.Fed.Farmers"
+ScenarioColumnOfInterest <- "Scenario.10.-.LesserOfConsentedorPC2Table14.2"
 
 #data_longV2 <- data_long
 data_long$Load <- data_long$hectares*data_long[,ScenarioColumnOfInterest]
@@ -1008,7 +1045,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario8_ConsentedOrFedFarm_MPICoxCalibrated.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario10_LesserOfConsentedOrTable14.2_MPICoxCalibrated.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
