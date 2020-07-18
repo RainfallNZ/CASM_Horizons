@@ -399,8 +399,6 @@ REC_rivers <- file.path(GISDataDirectory,"RECV2-Riverlines-Horizons","RECV2-Rive
 SubZonesFile                       <- file.path(GISDataDirectory,"Water_Management_Subzones_cleaned","Water_Management_Subzones_cleaned")
 LanduseLUCShapeFile                <- file.path(GISDataDirectory,"Landuse_LUC Original","Landuse_LUC Original")
 SubZoneLanduseLUCShapeFile         <- file.path(GISDataDirectory,"ZoneLanduseLUC","ZoneLanduseLUC")                   #May be created if necesary
-#Version where land use is all native
-#SubZoneLanduseLUCShapeFile         <- file.path(GISDataDirectory,"SubZoneNativeLanduseLUC","SubZoneNativeLanduseLUC")
 IrrigatedShapeFile                 <- file.path(GISDataDirectory,"irrigated-land-area-2017-Manawatu","irrigated-land-area-2017-Manawatu")
 IrrigableShapefile                 <- file.path(GISDataDirectory,"IrrigableLand","Irrigable-Horizons")
 PAWShapeFile                       <- file.path(GISDataDirectory,"FSL_Horizons","FSL_Horizons")
@@ -416,7 +414,6 @@ CASMStreamNetworkFile              <- file.path(GISDataDirectory,"CASM-StreamNet
 PredictorRasterFile                <- file.path(GISDataDirectory,"PredictorRaster 250x250.tif")
 #Baseline MPI leach rates
 LeachRateRasterFile                <- file.path(GISDataDirectory,"MPILeachRateRaster 250x250.tif")
-#LeachRateRasterFile                <- file.path(GISDataDirectory,"MPINativeLeachRateRaster 250x250.tif")
 #Various scenario leach rates these have already been corrected for the Tim Cox leach rate calibration corrections
 #LeachRateRasterFile               <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseTable14-2.tif")
 #LeachRateRasterFile               <- file.path(GISDataDirectory,"ScenarioLeachRastersFullTable14-2.tif")
@@ -442,6 +439,12 @@ CASMCalibrationSummaryFile         <- file.path(DataDirectory,"attenuation summa
 CASMInputFile                      <- file.path(DataDirectory,"CASM-Inputs_20200513.xlsx")   #A recent "baseline" scenario version, either with or without the Tim Cox corrections
 PointSourceExtraDataFile           <- file.path(DataDirectory,"pointSourcesTN_2012And2017.xlsx")
 PointSourceYear                    <- "2012" #2012 is the default and has been used for everything except for one scenario, The other option is "2017"
+
+#For the Native land use scenario need to load modified files
+#SubZoneLanduseLUCShapeFile         <- file.path(GISDataDirectory,"SubZoneNativeLanduseLUC","SubZoneNativeLanduseLUC")
+#LeachRateRasterFile                <- file.path(GISDataDirectory,"MPINativeLeachRateRaster 250x250.tif")
+#ZoneLanduseLUCRasterFile           <- file.path(GISDataDirectory,"ZoneNativeLanduseLUCRaster 250 x 250.tif")
+
 ```
 
 
@@ -1051,7 +1054,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario6_IntensiveOverseerBaseRatesWithCoxCalibratedB.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario7_NaturalStateWithCoxCalibratedB.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
