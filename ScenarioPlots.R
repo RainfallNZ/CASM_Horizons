@@ -514,6 +514,8 @@ X9aFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9a_PotatoOnLUC1
 X9bFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9b_PotatoOnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
 X10File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario10_LesserOfConsentedOrTable14.2_MPICoxCalibrated.xlsx") #Horizons "Scenario 10" lesser of consented or PC2 Table 14.2 Year 20 
 TonFile <- file.path(DataDirectory,"CASM-Inputs_Tons_Scenario_2017PointSources_CoxCalibrated.xlsx") #Ton's Scenario, 2017 point sources 
+X12File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrCoxCalibrated.xlsx")                                #Horizons "Scenario 6" Overseer base rates
+
 }
 
 SubZoneShapeFile    <- file.path(GISDirectory,"Water_Management_Subzones_cleaned","Water_Management_Subzones_cleaned.shp")
@@ -534,19 +536,24 @@ CompareRaster <- raster(ComparisonFile)
 #Load scenario output data
 ScenarioData <- read.csv(RiverConcentrationsDataFile)
 
-ScenarioColumns <- c("Baseline",	"Scenario0_a",	"Scenario0_b",	"Scenario1_a",	"Scenario1_b"	,"Scenario2_a",	"Scenario2_b",	"Scenario2_c",	"Scenario2_d",	"Scenario3_e",	"Scenario3_f","Scenario3_g",	"Scenario3_h"	,		"X4",	"X5",	"X6",	"X7",	"X8",	"X9a",	"X9b",	"X10",	"Ton")
+ScenarioColumns <- names(ScenarioData) %>% .[!.%in% c("X","WMSZ","Catchment","WMSZ2")]
+#ScenarioColumns <- c("Baseline",	"Scenario0_a",	"Scenario0_b",	"Scenario1_a",	"Scenario1_b"	,"Scenario2_a",	"Scenario2_b",	"Scenario2_c",	"Scenario2_d",	"Scenario3_e",	"Scenario3_f","Scenario3_g",	"Scenario3_h"	,		"X4",	"X5",	"X6",	"X7",	"X8",	"X9a",	"X9b",	"X10",	"Ton","X10")
 #ReferenceScenarioColumn <- "Baseline"
 #ComparisonScenarioColumn <- "X4"
 
 #Prepare the SIN data
 #Stick the SIN data to the Scenario Data and ditch the unwanted scenario Columns
 AllData <- merge(SINData[,c("WMSZ","Criteria.SIN.(g/m3)","Predicted.current.Mean.SIN.(Fraser.and.Snelder.2020)")],
-                 ScenarioData[,c("WMSZ","Baseline","Scenario0_a" ,"Scenario0_b", "Scenario1_a", "Scenario1_b", "Scenario2_a", "Scenario2_b", "Scenario2_c",
-                                 "Scenario2_d" ,"Scenario3_e", "Scenario3_f", "Scenario3_g", "Scenario3_h", "X4","X5","X6","X7","X8","X9a","X9b","X10","Ton")])
+                 ScenarioData[,c("WMSZ",ScenarioColumns)])
+
+#AllData <- merge(SINData[,c("WMSZ","Criteria.SIN.(g/m3)","Predicted.current.Mean.SIN.(Fraser.and.Snelder.2020)")],
+#                 ScenarioData[,c("WMSZ","Baseline","Scenario0_a" ,"Scenario0_b", "Scenario1_a", "Scenario1_b", "Scenario2_a", "Scenario2_b", "Scenario2_c",
+#                                 "Scenario2_d" ,"Scenario3_e", "Scenario3_f", "Scenario3_g", "Scenario3_h", "X4","X5","X6","X7","X8","X9a","X9b","X10","Ton","X12")])
 
 #Calculate relative change in TN
-Scenarios <- c("Baseline","Scenario0_a" ,"Scenario0_b", "Scenario1_a", "Scenario1_b", "Scenario2_a", "Scenario2_b", "Scenario2_c",
-               "Scenario2_d" ,"Scenario3_e", "Scenario3_f", "Scenario3_g", "Scenario3_h", "X4","X5","X6","X7","X8","X9a","X9b","X10","Ton")
+Scenarios <- ScenarioColumns
+#Scenarios <- c("Baseline","Scenario0_a" ,"Scenario0_b", "Scenario1_a", "Scenario1_b", "Scenario2_a", "Scenario2_b", "Scenario2_c",
+#               "Scenario2_d" ,"Scenario3_e", "Scenario3_f", "Scenario3_g", "Scenario3_h", "X4","X5","X6","X7","X8","X9a","X9b","X10","Ton","X12")
 
 SINDifferenceMatrix <- sapply(Scenarios, function(Scenario){
   #Calculate scenario SIN
@@ -671,7 +678,7 @@ BaselinePlotGenerator <- function(Reference = ReferenceScenarioColumn){
   
 # PlotGenerator(Comparison = "X4",Reference = "Baseline")             #Operative, no consents, operative vs model baseline
 # PlotGenerator(Comparison = "Scenario0_b",Reference = "X4")           #Operative, consents, operative vs #Operative, no consents
-# PlotGenerator(Comparison = "X5",Reference = "X4")                    #Opertive with dairy expansion vs operative
+# PlotGenerator(Comparison = "X5",Reference = "X4")                    #Operative with dairy expansion vs operative
 # PlotGenerator(Comparison = "X6",Reference = "Baseline")                    #
 # 
 # PlotGenerator(Comparison = "Scenario1_b",Reference = "Scenario0_b")  #
@@ -688,7 +695,8 @@ BaselinePlotGenerator <- function(Reference = ReferenceScenarioColumn){
 # PlotGenerator(Comparison = "X9a",Reference = "Baseline")
 # PlotGenerator(Comparison = "X9b",Reference = "Baseline")
 # PlotGenerator(Comparison = "Ton",Reference = "Baseline")
+# PlotGenerator(Comparison = "X12",Reference = "X6")
 
 #AbsolutePlotGenerator(Reference = "Baseline")
-#BaselinePlotGenerator(Reference = "Baseline")
+#BaselinePlotGenerator(Reference = "Baseline") #This is the one that is used in the report
 

@@ -80,10 +80,12 @@ X9aFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9a_PotatoOnLUC1
 X9bFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9b_PotatoOnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
 X10File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario10_LesserOfConsentedOrTable14.2_MPICoxCalibrated.xlsx") #Horizons "Scenario 10" lesser of consented or PC2 Table 14.2 Year 20 
 TonFile <- file.path(DataDirectory,"CASM-Inputs_Tons_Scenario_2017PointSources_CoxCalibrated.xlsx") #Ton's Scenario, 2017 point sources 
+X12File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrCoxCalibrated.xlsx") #Horizons "Scenario 12" 
+
 
 #Start by creating a data frame of all the input data with the rowname being the WMSZ and the column being the scenario
 Scenarios <- c("Baseline","Scenario0_a" ,"Scenario0_b", "Scenario1_a", "Scenario1_b", "Scenario2_a",
-               "Scenario2_d" ,"Scenario3_e", "Scenario3_h", "X4","X5","X6","X7","X8","X9a","X9b","X10","Ton")
+               "Scenario2_d" ,"Scenario3_e", "Scenario3_h", "X4","X5","X6","X7","X8","X9a","X9b","X10","Ton","X12")
 
 ListOfScenarioExportCoefficeints <-  lapply(Scenarios, function(Scenario){
   ScenarioFilenameReference <- paste0(Scenario,"File")
@@ -112,6 +114,7 @@ ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X8",Reference = "S
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X9a",Reference = "Baseline", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X9b",Reference = "Baseline", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Ton",Reference = "Baseline", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X12",Reference = "X6", stringsAsFactors = FALSE))
 
 #Now work through the Scenario-Comparator pairs and build up the summary statistics
 ListOfComparisonSummaryStatistics <- apply(ScenarioPairs,1, function(ScenarioComparison) { #ScenarioComparison <- ScenarioPairs[1,]
@@ -151,7 +154,7 @@ ListOfComparisonSummaryStatistics <- apply(ScenarioPairs,1, function(ScenarioCom
 })
   
   
-SummaryStatistics <- do.call("rbind",bob)  
+SummaryStatistics <- do.call("rbind",ListOfComparisonSummaryStatistics)  
   
   
   
