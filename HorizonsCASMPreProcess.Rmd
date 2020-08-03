@@ -688,12 +688,27 @@ FedFarmValues <- apply(HorizonsPropertyData,1, function(x) {
   NewLossRate <- if(x["Consented"] == "Y") as.numeric(x["Target.N.Leaching.(kg.N/ha/yr)"]) else min(Percentile75th,0.9 * as.numeric(x["Base"]),na.rm=TRUE)
 })
 
-#Pare it down to just the data that is needed
+{
+##Special preparation of a table that shows the 75th percentiles of water management zones, and the 90th percentage of individual properties
+#FedFarmValues <- apply(HorizonsPropertyData,1, function(x) {
+#  WaterManagementZone <- x["Water.Management.Zone"]
+#  WMZBaselines <- HorizonsPropertyData$`Base.N.Leaching.(kg.N/ha/yr)`[HorizonsPropertyData$Water.Management.Zone == WaterManagementZone]
+#  Percentile75th <- quantile(WMZBaselines,probs = 0.75,names=FALSE,na.rm=TRUE)
+#  NewLossRate <- if(x["Consented"] == "Y") as.numeric(x["Target.N.Leaching.(kg.N/ha/yr)"]) else min(Percentile75th,0.9 * as.numeric(x["Base"]),na.rm=TRUE)
+#  Output <- data.frame(Percentile75th = Percentile75th,Base0.9 = 0.9 * as.numeric(x["Base"]), FedFarmRate = NewLossRate)
+#  return(Output)
+#})
+
+#FedFarmTable <- do.call("rbind",FedFarmValues)
+#FedFarmTable <- cbind(HorizonsPropertyData,FedFarmTable)
+#FedFarmTable <- FedFarmTable[,c(1:3,9,13,15,16,61:63)]
+#write.table(FedFarmTable,file.path(DataDirectory,"FedFarmScenarioDataTable.csv"),quote = FALSE,sep=",")
+##Pare it down to just the data that is needed
+}
 HorizonsPropertyData <- HorizonsPropertyData[,c(3,15,23:30,47:60)]
 
 #Add on the FedFarmers Scenario
 HorizonsPropertyData$Scenario.8.Fed.Farmers <- FedFarmValues
-
 #there are some properties that are in multiple sub-management zones. Find them,divide them and share the LUC areas amongst the divided parts, adding the extra divided parts to the end of the master table
 {
   MultiSubManagementZoneProperties <- which(grepl(",",HorizonsPropertyData$Water.Management.Subzone,fixed=TRUE))
@@ -1123,7 +1138,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrCoxCalibrated.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9b_Potato46OnLUC1to3_CoxCalibrated.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
