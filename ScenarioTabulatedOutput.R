@@ -103,11 +103,16 @@ ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario0_b",Refer
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X5",Reference = "X4", stringsAsFactors = FALSE))                    
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X6",Reference = "Baseline", stringsAsFactors = FALSE))                    
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario1_b",Reference = "Scenario0_b", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario1_b",Reference = "X6", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario3_e",Reference = "Scenario1_b", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario3_e",Reference = "X6", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario3_e",Reference = "X10", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario3_h",Reference = "Scenario3_e", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario3_h",Reference = "Scenario1_b", stringsAsFactors = FALSE))
-ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario2_a",Reference = "Scenario3_e", stringsAsFactors = FALSE))
-ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario2_d",Reference = "Scenario3_h", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario3_h",Reference = "X6", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario3_h",Reference = "Scenario1_b", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario2_a",Reference = "X6", stringsAsFactors = FALSE))
+ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "Scenario2_d",Reference = "X10", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X10",Reference = "Scenario1_b", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X7",Reference = "Baseline", stringsAsFactors = FALSE))
 ScenarioPairs <- rbind(ScenarioPairs,data.frame(Comparison = "X8",Reference = "Scenario1_b", stringsAsFactors = FALSE))
@@ -156,5 +161,5 @@ ListOfComparisonSummaryStatistics <- apply(ScenarioPairs,1, function(ScenarioCom
   
 SummaryStatistics <- do.call("rbind",ListOfComparisonSummaryStatistics)  
   
-  
+write.table(SummaryStatistics,file.path(DataDirectory,"ScenarioComparisonStats.csv"),quote = FALSE,sep=",",row.names = FALSE)
   

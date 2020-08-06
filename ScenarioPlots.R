@@ -676,26 +676,31 @@ BaselinePlotGenerator <- function(Reference = ReferenceScenarioColumn){
 
 
   
-# PlotGenerator(Comparison = "X4",Reference = "Baseline")             #Operative, no consents, operative vs model baseline
-# PlotGenerator(Comparison = "Scenario0_b",Reference = "X4")           #Operative, consents, operative vs #Operative, no consents
-# PlotGenerator(Comparison = "X5",Reference = "X4")                    #Operative with dairy expansion vs operative
-# PlotGenerator(Comparison = "X6",Reference = "Baseline")                    #
-# 
-# PlotGenerator(Comparison = "Scenario1_b",Reference = "Scenario0_b")  #
-# PlotGenerator(Comparison = "Scenario3_e",Reference = "Scenario1_b")
-# PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario3_e")
-# PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario1_b")
-# PlotGenerator(Comparison = "Scenario2_a",Reference = "Scenario3_e")
-# PlotGenerator(Comparison = "Scenario2_d",Reference = "Scenario3_h")
-# PlotGenerator(Comparison = "X10",Reference = "Scenario1_b")
-# 
-# 
-# PlotGenerator(Comparison = "X7",Reference = "Baseline")
-# PlotGenerator(Comparison = "X8",Reference = "Scenario1_b")
-# PlotGenerator(Comparison = "X9a",Reference = "Baseline")
-# PlotGenerator(Comparison = "X9b",Reference = "Baseline")
-# PlotGenerator(Comparison = "Ton",Reference = "Baseline")
-# PlotGenerator(Comparison = "X12",Reference = "X6")
+PlotGenerator(Comparison = "X4",Reference = "Baseline")             #Operative, no consents, operative vs model baseline
+PlotGenerator(Comparison = "Scenario0_b",Reference = "X4")           #Operative, consents, operative vs #Operative, no consents
+PlotGenerator(Comparison = "X5",Reference = "X4")                    #Operative with dairy expansion vs operative
+PlotGenerator(Comparison = "X6",Reference = "Baseline")                    #
+
+PlotGenerator(Comparison = "Scenario1_b",Reference = "Scenario0_b")
+PlotGenerator(Comparison = "Scenario1_b",Reference = "X6")
+PlotGenerator(Comparison = "Scenario3_e",Reference = "Scenario1_b")
+PlotGenerator(Comparison = "Scenario3_e",Reference = "X6")
+PlotGenerator(Comparison = "Scenario3_e",Reference = "X10")
+PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario3_e")
+PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario1_b")
+PlotGenerator(Comparison = "Scenario3_h",Reference = "X6")
+PlotGenerator(Comparison = "Scenario3_h",Reference = "X10")
+PlotGenerator(Comparison = "Scenario2_a",Reference = "Scenario3_e")
+PlotGenerator(Comparison = "Scenario2_d",Reference = "Scenario3_h")
+PlotGenerator(Comparison = "X10",Reference = "Scenario1_b")
+
+
+PlotGenerator(Comparison = "X7",Reference = "Baseline")
+PlotGenerator(Comparison = "X8",Reference = "Scenario1_b")
+PlotGenerator(Comparison = "X9a",Reference = "Baseline")
+PlotGenerator(Comparison = "X9b",Reference = "Baseline")
+PlotGenerator(Comparison = "Ton",Reference = "Baseline")
+PlotGenerator(Comparison = "X12",Reference = "X6")
 
 #AbsolutePlotGenerator(Reference = "Baseline")
 #BaselinePlotGenerator(Reference = "Baseline") #This is the one that is used in the report
