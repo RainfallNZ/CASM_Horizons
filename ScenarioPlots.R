@@ -512,9 +512,14 @@ X7File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario7_NaturalStateW
 X8File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario8_IntensiveTable14_2Year20OrConsentedOrFedFarmWithCoxCalibrated.xlsx")               #Horizons "Scenario 8, Fed. Farmers.
 X9aFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9a_PotatoOnLUC1to3DairyOrSheepAndBeef_CoxCalibrated.xlsx") #Horizons "Scenario 9a" Potatoes on LUC1 to 3 SHeep and Beef
 X9bFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9b_PotatoOnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
+X9cFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9c_Potato24OnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
+X9dFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9d_Potato13OnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
+X9eFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9e_Potato9OnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
+
 X10File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario10_LesserOfConsentedOrTable14.2_MPICoxCalibrated.xlsx") #Horizons "Scenario 10" lesser of consented or PC2 Table 14.2 Year 20 
 TonFile <- file.path(DataDirectory,"CASM-Inputs_Tons_Scenario_2017PointSources_CoxCalibrated.xlsx") #Ton's Scenario, 2017 point sources 
 X12File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrCoxCalibrated.xlsx")                                #Horizons "Scenario 6" Overseer base rates
+X13File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario13_HorticultureInSWestTo46OrCoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
 
 }
 
@@ -676,31 +681,35 @@ BaselinePlotGenerator <- function(Reference = ReferenceScenarioColumn){
 
 
   
-PlotGenerator(Comparison = "X4",Reference = "Baseline")             #Operative, no consents, operative vs model baseline
-PlotGenerator(Comparison = "Scenario0_b",Reference = "X4")           #Operative, consents, operative vs #Operative, no consents
-PlotGenerator(Comparison = "X5",Reference = "X4")                    #Operative with dairy expansion vs operative
-PlotGenerator(Comparison = "X6",Reference = "Baseline")                    #
-
-PlotGenerator(Comparison = "Scenario1_b",Reference = "Scenario0_b")
-PlotGenerator(Comparison = "Scenario1_b",Reference = "X6")
-PlotGenerator(Comparison = "Scenario3_e",Reference = "Scenario1_b")
-PlotGenerator(Comparison = "Scenario3_e",Reference = "X6")
-PlotGenerator(Comparison = "Scenario3_e",Reference = "X10")
-PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario3_e")
-PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario1_b")
-PlotGenerator(Comparison = "Scenario3_h",Reference = "X6")
-PlotGenerator(Comparison = "Scenario3_h",Reference = "X10")
-PlotGenerator(Comparison = "Scenario2_a",Reference = "Scenario3_e")
-PlotGenerator(Comparison = "Scenario2_d",Reference = "Scenario3_h")
-PlotGenerator(Comparison = "X10",Reference = "Scenario1_b")
-
-
-PlotGenerator(Comparison = "X7",Reference = "Baseline")
-PlotGenerator(Comparison = "X8",Reference = "Scenario1_b")
-PlotGenerator(Comparison = "X9a",Reference = "Baseline")
-PlotGenerator(Comparison = "X9b",Reference = "Baseline")
-PlotGenerator(Comparison = "Ton",Reference = "Baseline")
-PlotGenerator(Comparison = "X12",Reference = "X6")
+# PlotGenerator(Comparison = "X4",Reference = "Baseline")             #Operative, no consents, operative vs model baseline
+# PlotGenerator(Comparison = "Scenario0_b",Reference = "X4")           #Operative, consents, operative vs #Operative, no consents
+# PlotGenerator(Comparison = "X5",Reference = "X4")                    #Operative with dairy expansion vs operative
+# PlotGenerator(Comparison = "X6",Reference = "Baseline")                    #
+# 
+# PlotGenerator(Comparison = "Scenario1_b",Reference = "Scenario0_b")
+# PlotGenerator(Comparison = "Scenario1_b",Reference = "X6")
+# PlotGenerator(Comparison = "Scenario3_e",Reference = "Scenario1_b")
+# PlotGenerator(Comparison = "Scenario3_e",Reference = "X6")
+# PlotGenerator(Comparison = "Scenario3_e",Reference = "X10")
+# PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario3_e")
+# PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario1_b")
+# PlotGenerator(Comparison = "Scenario3_h",Reference = "X6")
+# PlotGenerator(Comparison = "Scenario3_h",Reference = "X10")
+# PlotGenerator(Comparison = "Scenario2_a",Reference = "Scenario3_e")
+# PlotGenerator(Comparison = "Scenario2_d",Reference = "Scenario3_h")
+# PlotGenerator(Comparison = "X10",Reference = "Scenario1_b")
+# 
+# 
+# PlotGenerator(Comparison = "X7",Reference = "Baseline")
+# PlotGenerator(Comparison = "X8",Reference = "Scenario1_b")
+# PlotGenerator(Comparison = "X9a",Reference = "Baseline")
+# PlotGenerator(Comparison = "X9b",Reference = "Baseline")
+# PlotGenerator(Comparison = "X9c",Reference = "Baseline")
+# PlotGenerator(Comparison = "X9d",Reference = "Baseline")
+# PlotGenerator(Comparison = "X9e",Reference = "Baseline")
+# PlotGenerator(Comparison = "Ton",Reference = "Baseline")
+# PlotGenerator(Comparison = "X12",Reference = "X6")
+# PlotGenerator(Comparison = "X13",Reference = "Baseline")
 
 #AbsolutePlotGenerator(Reference = "Baseline")
 #BaselinePlotGenerator(Reference = "Baseline") #This is the one that is used in the report
