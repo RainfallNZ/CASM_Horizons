@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 Load libraries
-```{r}
+```{r Load-libraries}
 if (!require(rgdal)) install.packages("rgdal"); library(rgdal)   
 if (!require(raster)) install.packages("raster"); library(raster)
 if (!require(plyr)) install.packages("plyr"); library(plyr)
@@ -14,14 +14,32 @@ if (!require(CASMPrePostProcessor)) install_github("rainfallnz/CASMPrePostProces
 ```
 
 Some functions
-```{r}
+```{r Some-functions}
 
 
 #Create scenario leach rate rasters from Horizon's Plan change 2 Table 14.2, from the raster of the Sub-management Zone-Land Use-LUC (and the look up table which #converts the class numbers to descriptions), and the "current" MPI-based leach rate raster
-
-ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_Leach_Table = LeachRateLimits, ZLLRaster = ZoneLanduseLUCRaster, ZoneLanduseLUC_LUTFile = ZoneLanduseLUCCode_To_ClassLUTFile,
-                                     plan = "PC2", year = 20,
+#' Function to create scenario leach rate rasters based on reginal plan leach rate limits, and optionally landuse and leach rate mitigation. 
+#' @param CurrentLeachRateRaster The base leach rate raster with which to modify
+#' @param LUC_To_Leach_Table A csv file which has the Table 14.2 leach rates for different Land Use Capablities, and years.
+#' @param ZLLRaster A raster of the zone, landue and land use capability combination codes. Same extent and resolution as CurrentLeachRateRaster
+#' @param ZoneLanduseLUC_LUTFile Look up table to convert the values in the ZLLRaster to the actual zone, land uses and land use capabilities
+#' @param plan Either "PC2" (the default), or "Existing".
+#' @param year Which year of the Table 14.2 to apply. Default is 20. Options depend on what is in the "Year" column of the LUC_TO_LEACH_Table
+#' @param Intensive Whether the leach rate ammendments are to be limited to Intensive Farm Land Uses (IFLU) or to everywhere. "FALSE" is the default.
+#' @param LandUse Whether the land-use-specific ammendments are to be implemented. Options are "NA" (the default), or any of the Landuse classes in ZoneLanduseLUC_LUTFile table. "Dairy" is a popular choice. The type of ammendment is determined by the vaulue of the Mitigation parameter.
+#' @param Mitigation Ignored if Landuse is "NA". The amount of reduction. If an integer then the mitigation is absolute leach rate to be reduced by (units are annual kg/ha), if a decimal less than 1, the mitigation is a relative drop in leach rate. These values are to be applied to the landuse specified by the Landuse parameter.
+#' @param MPIPredictorRasterFile Raster stack of the leach rate predictors
+#' @return A raster of leach rates with a side-effect of a multi-band geo tiff file of the leach rates, complete with the constituent rasters.
+#' @export
+ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, 
+                                    LUC_To_Leach_Table = LeachRateLimits, 
+                                    ZLLRaster = ZoneLanduseLUCRaster, 
+                                    ZoneLanduseLUC_LUTFile = ZoneLanduseLUCCode_To_ClassLUTFile,
+                                    plan = "PC2", 
+                                    year = 20,
                                     Intensive = FALSE,
+                                    Landuse = "NA",
+                                    Mitigation = 9,
                                     MPIPredictorRasterFile = PredictorRasterFile) {
   #Load the ZoneLanduseLUC raster and the look up table that relates the raster's codes to a combined-class name
   ZoneLanduseLUC_LUT <- read.table(ZoneLanduseLUC_LUTFile,sep=",",header=TRUE)
@@ -38,8 +56,6 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_L
   SMZRaster <- reclassify(ZLLRaster,as.matrix(ZoneLanduseLUC_LUT[,c('ID','ZoneNo')]))
   LUCRaster <- reclassify(ZLLRaster,as.matrix(ZoneLanduseLUC_LUT[,c('ID','LUC')]))
   
-  
-  
   #Reclasify to Table 14.2 leach rates as though they applied everywhere
   LeachRateLUT <- matrix(ncol=2,c(1:8,t(LUC_To_Leach_Table[LUC_To_Leach_Table$Year == year & LUC_To_Leach_Table$Plan == plan,c(3:10)])))
   AreaWideScenarioLeachRates <- reclassify(LUCRaster, LeachRateLUT)
@@ -54,6 +70,25 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_L
   #For the intensive farming areas find the Scenario leach rates, otherwise, keep using the MPI leach rates
   ScenarioLeachRate <- AreaWideScenarioLeachRates * IntensiveFarmingMask + CurrentLeachRateRaster * !IntensiveFarmingMask
   
+  
+  if(Landuse != "NA") {
+    #Adjust the specified landuse type using the mitigation rate
+    #Create a mask of the intensive land use of interest
+    LandUseMask <- IntensiveFarmingMask & (LandUseRaster %in% which(levels(ZoneLanduseLUC_LUT$Landuse) %in% Landuse))
+    
+    #For the mask area get the original leach rate and subtract the mitigation leach rate
+    MaxMitigation <- LandUseMask * CurrentLeachRateRaster - Mitigation
+    
+    #If mitigation is less than 1 assume it is supposed to be a relative mitigation reduction
+    if (Mitigation < 1) MaxMitigation <- LandUseMask * CurrentLeachRateRaster * (1 - Mitigation)
+    
+    #For the mask area get the maximum of the Table rate or the mitigation rate. The idea is that mitigation will only be carried out until the table rate is reached.
+    NewLandUseRate <- max(stack(MaxMitigation,ScenarioLeachRate))
+    
+    #Update the leach rate with these values
+    ScenarioLeachRate <- NewLandUseRate * LandUseMask + ScenarioLeachRate * !LandUseMask
+  }
+  
     #Export a raster stack for exploration in QGIS
   ScenarioRasters <- raster::stack(x=list(Scenario=ScenarioLeachRate,ScenarioAll=AreaWideScenarioLeachRates,Mask=IntensiveFarmingMask,MPI=CurrentLeachRateRaster,LUC=LUCRaster,Landuse=LandUseRaster,Irrigation=IrrigatedRaster))
   } else {
@@ -62,8 +97,6 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, LUC_To_L
   ScenarioRasters <- raster::stack(x=list(Scenario=ScenarioLeachRate,ScenarioAll=AreaWideScenarioLeachRates,MPI=CurrentLeachRateRaster,LUC=LUCRaster,Landuse=LandUseRaster))
   }
   
-  
-
   writeRaster(ScenarioRasters,file.path(GISDataDirectory,"ScenarioLeachRasters.tif"),overwrite=TRUE)
   
   
@@ -406,12 +439,173 @@ DairyLeachRateGeterer <- function(LeachRates = LeachRate,
     return(AverageValue)
 }
 
+#*************************************************************************
+#Function to reclassify leach rates of a specific number to another number
+#This has been used to adjust the maximum leach rate of vegetable growing from 71 to a new value
+#This was for scenario 13 A and B AKA Horticulture Mitigation A and B
+LeachRateReclassifier <- function(LeachRates = LeachRate, OldValue = 71, NewValue = 46){
+  OutLeachRates <- reclassify(LeachRates, rcl = matrix(c(OldValue,NewValue),ncol=2))
+  return(OutLeachRates)
+}
 ```
 
+## Scenario Preparation
+A large number of scenarios have been prepared using these data.
+The scenarios are described [here](https://harrcons.sharepoint.com/:w:/r/sites/HorizonsPlanChange_2/Shared%20Documents/Reports/ScenarioSummary%2018%20August%202020.docx?d=wc6b1b8d41f28444bbd59f9d86f059b7b&csf=1&web=1&e=csq2rx).  
+Each scenario has a slightly different method of being prepared.  
+For added confusion, the naming of the scenarios has changed several times.
+The following is an attempt to describe how to re-create each of the different scenarios.
+It is a good idea to repeat a previous scenario and check output is identical before preparing variants.
+In no particular order:  
+
+### Horizons Scenario 3e-h
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 3 
+Streamlined Environmental| 5 
+Report                   | Proposed Year 20 Pathway 
+CASM input filename      | CASM-Inputs_SEL_Scenario_5a_IntensiveTable14_2Year20OrConsentedOrDH9WithCoxCalibrated.xlsx
 
 
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to Intensive Farm Land use PC2 table 14.2 tif file.  
+4. Run the "load files" chunk.
+5. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.  
+6. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+7. DON'T run the Scenario 5 chunk 
+8. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+9. Edit (then run) the Excel output chunk so that the output excel file has a sensible name. 
+10. Check that the output file is reasonable by running the CASMScenarioInputChecker function.
+
+***
+
+### Horizons Scenario 3i and 3j
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 3[i,j] 
+Streamlined Environmental| N/A 
+Report                   | Proposed Year-20 Pathway [E,F]
+CASM input filename      | CASM-Inputs_Horizons_Scenario3i_IntensiveTable14_2Year20OrConsentedOrDH[9,18]AllDairyWithCoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+4. Run the "load files" chunk.
+5. Update the LeachRate raster using the ScenarioLeachRateRaster function with Landuse set to "Dairy" and mitigation set to 9 (for 3i) and 18 (for 3j)
+6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.
+7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+8. DON'T run the Scenario 5 chunk 
+9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
+
+***
+
+### Horizons Scenario 3k and 3l
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 3[k,l] 
+Streamlined Environmental| N/A 
+Report                   | Proposed Year-20 Pathway [G,H]
+CASM input filename      | CASM-Inputs_Horizons_Scenario3k_IntensiveTable14_2Year20OrConsentedOrDH[9,18]AllDairyVegLess36PctWithCoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+4. Run the "load files" chunk.
+5. Copy the LeachRate to a LeachRateCC
+6. Create dairy-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to  Landuse set to "Dairy" and mitigation set to 9 (for 3k) and 18 (for 3l)
+6. Create sheep-and-beef-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Landuse set to "Sheep and Beef" and mitigation set to 9 (for 3k) and 18 (for 3l)
+7. Create hort-veg-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Landuse set to "Horticulture-veg" and mitigation set to 0.36
+8. Create hort-other-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Landuse set to "Horticulture-other" and mitigation set to 0.36
+9. Get the maximum of the hort-veg and hort-other leach rates using max(stack(leachrateveg,leachrateother))
+10. Get the maximum of the veg and the dairy and sheep and beef leach rates for each of the mitigation variants, using the same method as in 9 above
+6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.
+7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+8. DON'T run the Scenario 5 chunk 
+9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
+
+***
+
+### Horizons Scenario 12a, 12b 12c
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 12[a,b,c]
+Streamlined Environmental| N/A
+Report                   | Post-regulation[A,B,C]  
+CASM input filename      | CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOr[HorticultureInSWestTo[46,32]]CoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+4. Run the "load files" chunk.
+5. Update the LeachRate raster using the LeachRateReclassifier function. 71 is unique to south west climate vegetables, so change this to whatever is required.
+6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3. 
+7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+8. DON'T run the Scenario 5 chunk 
+9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name. 
+11.Check that the output file is reasonable by running the CASMScenarioInputChecker function.  
+
+***
+
+### Horizons Scenario 12d
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 12d 
+Streamlined Environmental| N/A
+Report                   | Post-regulationD  
+CASM input filename      | CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrHorticultureInSWestTo46OrCoxCalibrated2017PointSources.xlsx
+
+#### Scenario preparation process
+1. as above
+2. as above
+3. as above. But also edit the PointSourceYear to be 2017
+4. as above.
+5. as above.
+6. as above
+7. as above  
+8. as above 
+9. as above  
+10. as above 
+11. as above
+
+***
+
+### Horizons Scenario 13
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 13 
+Streamlined Environmental| 13 
+Report                   | Horticulture Mitigation 
+CASM input filename      | CASM-Inputs_Horizons_Scenario13_HorticultureInSWestTo46OrCoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+4. Run the "load files" chunk.
+5. Update the LeachRate raster using the LeachRateReclassifier function. 71 is unique to south west climate vegetables, so change this to whatever is required.
+6. DON'T run the "scenario preparation" chunk  
+7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+8. DON'T run the Scenario 5 chunk 
+9. DON'T RUN the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name. 
+11. Check that the output file is reasonable by running the CASMScenarioInputChecker function.
+
+***
 Set directories and data file names.
-
 Four main type of files exist:
 R data files
 Spatial shape files (either points, lines or polygons) in ESRI format
@@ -419,7 +613,7 @@ Raster files in geotif format
 Text files in comma separated variable format
 
 Note that some of these are filenames of files that are created by the script, or, confusingly, may be created if deemed necesary.
-```{r}
+```{r Set-directories-and-filenames}
 #Set the project directory
 ProjectDirectory <- "D:\\Projects\\LWP\\Horizons"       #Tim Kerr's Windows Home laptop
 
@@ -456,7 +650,10 @@ PredictorRasterFile                <- file.path(GISDataDirectory,"PredictorRaste
 #Baseline MPI leach rates
 LeachRateRasterFile                <- file.path(GISDataDirectory,"MPILeachRateRaster 250x250.tif")
 #Various scenario leach rates these have already been corrected for the Tim Cox leach rate calibration corrections
+
+#For Horizons scenario: 3, Streamlined Scenario: 5, Report scenario: Proposed Year 20 Pathway
 #LeachRateRasterFile               <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseTable14-2.tif")
+
 #LeachRateRasterFile               <- file.path(GISDataDirectory,"ScenarioLeachRastersFullTable14-2.tif")
 #LeachRateRasterFile               <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseTable14_2_Year5.tif")
 #LeachRateRasterFile               <- file.path(GISDataDirectory,"ScenarioLeachRasters_IntensiveLanduseExistingTable14_2_Year20.tif")
@@ -486,11 +683,13 @@ PointSourceYear                    <- "2012" #2012 is the default and has been u
 #LeachRateRasterFile                <- file.path(GISDataDirectory,"MPINativeLeachRateRaster 250x250.tif")
 #ZoneLanduseLUCRasterFile           <- file.path(GISDataDirectory,"ZoneNativeLanduseLUCRaster 250 x 250.tif")
 
+#If a scenarios leachrate raster needs to be re-created then this can be don 
+
 ```
 
 
 load data
-```{r}
+```{r Load-data}
 #REC data has been sourced from the NIWA website. It has cut down versions of the attribute names, e.g. nzsegment is nzsgmnt. Keep an eye on this when comparing to other data sources that may have the full RECV2 attribute names.
 RECReachNetwork <- readOGR(dsn = dirname(REC_rivers),layer = basename(REC_rivers))
 #Explicitly set projection to NZTM
@@ -593,7 +792,7 @@ SubZoneLanduseLUCSpatial <- spTransform(SubZoneLanduseLUCSpatial,CRS("+init=epsg
 LeachRate <- stack(LeachRateRasterFile)[[1]]
 
 #**********************************************************
-#If the leach rate raster file is missing or needs to be re-created then use the following:
+#If the original leach rate raster file is missing or needs to be re-created then use the following:
 #Takes 5 minutes at 250 m
 #Note addition of timing to see how long it takes
 # tic()
@@ -611,6 +810,8 @@ LeachRate <- stack(LeachRateRasterFile)[[1]]
 #******************************************************************
 # Or for a leach rate raster associated with native landcover use:
 #LeachRateRaster <- LeachRateRasterCreator(LanduseData = NativeLandUSe)
+#**************************************
+
 
 #Load the ZoneLanduseLUC raster if it exists
 ZoneLanduseLUCRaster <- raster(ZoneLanduseLUCRasterFile, RAT=TRUE)
@@ -629,6 +830,8 @@ levels(ZoneLanduseLUCRaster)[[1]] <- levels(ZoneLanduseLUCRaster)[[1]][-1,]
 #And save a levels-to-class name look up table
 #write.table(levels(ZoneLanduseLUCRaster),ZoneLanduseLUCCode_To_ClassLUTFileName,sep=",",quote=FALSE, row.names=FALSE)
 #******************************************************************
+
+
 
 
 #If using the MPI baseline, override the calibrated values with the Tim Cox values
@@ -660,6 +863,41 @@ if (basename(LeachRateRasterFile) == "MPILeachRateRaster 250x250.tif") {
   LeachRate <- subs(ZoneLanduseLUCRaster, CalibratedLeachRateLUT,by="RasterValue",which="Export.Coeff.(kg/ha/yr)")
 }
 
+# # Or to recreate leach rate rasters from the Cox-calibrated leach rates adjusted for Table 14.2 use this (this example does PC2 year 20 for IFLU, no landuse mitigation):
+# LeachRateTable14.2 <- ScenarioLeachRateRaster(CurrentLeachRateRaster = LeachRate,
+#                                            LUC_To_Leach_Table = LeachRateLimits,
+#                                     ZLLRaster = ZoneLanduseLUCRaster,
+#                                     ZoneLanduseLUC_LUTFile = ZoneLanduseLUCCode_To_ClassLUTFile,
+#                                     plan = "PC2",
+#                                     year = 20,
+#                                     Intensive = TRUE,
+#                                     Landuse = "NA",
+#                                     Mitigation = 9,
+#                                     MPIPredictorRasterFile = PredictorRasterFile)
+# # Or to adjust for mitigation of  a certain land use, e.g. Scenario 3i. Note that this requires the CurrentLeachRateRaster to be the Cox-calibrated version
+# LeachRateTable14.2AndMitigatedAbsolute <- ScenarioLeachRateRaster(CurrentLeachRateRaster = LeachRate,
+#                                            LUC_To_Leach_Table = LeachRateLimits,
+#                                     ZLLRaster = ZoneLanduseLUCRaster,
+#                                     ZoneLanduseLUC_LUTFile = ZoneLanduseLUCCode_To_ClassLUTFile,
+#                                     plan = "PC2",
+#                                     year = 20,
+#                                     Intensive = TRUE,
+#                                     Landuse = "Dairy",
+#                                     Mitigation = 9,
+#                                     MPIPredictorRasterFile = PredictorRasterFile)
+# LeachRateTable14.2AndMitigatedRelative <- ScenarioLeachRateRaster(CurrentLeachRateRaster = LeachRate,
+#                                            LUC_To_Leach_Table = LeachRateLimits,
+#                                     ZLLRaster = ZoneLanduseLUCRaster,
+#                                     ZoneLanduseLUC_LUTFile = ZoneLanduseLUCCode_To_ClassLUTFile,
+#                                     plan = "PC2",
+#                                     year = 20,
+#                                     Intensive = TRUE,
+#                                     Landuse = "Horticulture-Veg",
+#                                     Mitigation = 0.36,
+#                                     MPIPredictorRasterFile = PredictorRasterFile)
+#For multiple conditions it is necesary to create separate leachrate rasters, then combine them using max(stack(LeachRate1,LeachRate2...)).
+#Note also that there are two types of Horticulture in the Landuse raster (Horticulture-Veg and Horticulture-Other), which map to the single "Horticulture" class in the MPI lookup table, so both Horticulture's need to be done.This assumes leachrates are lifted up to the table level if they were previously below.
+#Do to do Dairy and "Sheep and Beef" and Horticulture it is necesary to create 4 different leachrate rasters, all starting from the CoxCalibrated version. 
 ```
 
 
@@ -669,7 +907,7 @@ Chunk  to read in the Horizons property attributes table and to pare it down to 
 ****This processing relies on the sub management zones provided in a spreadsheet from Horizons. Unfortunately some of those sub management zones have changed (split). The location information for the farms is available from "Master farm data for PC 2 evidence streams.xlsx within 
 https://harrcons.sharepoint.com/sites/HorizonsPlanChange_2 under Documents/Analysis/LeachingRates
 This location information needs to be used to update some of theses sites' attributes. 
-```{r}
+```{r Some-scenario-data-preparation}
 #Load a couple of special libraries
 if (!require("openxlsx")) install.packages("openxlsx"); library(openxlsx) #needed for reading excel spreadsheet
 if (!require("tidyr")) install.packages("tidyr"); library(tidyr)  #has the "pivot_long" function
@@ -749,7 +987,7 @@ data_long$CombinedName <- paste0(data_long$Water.Management.Subzone,"-Dairy-",da
 #ScenarioColumnOfInterest <- "Scenario.2(b).-.12kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.2(c).-.15kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.2(d).-.18kg/ha.reduction"
-#ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
+ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(f).-.12kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(g).-.15kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(h).-.18kg/ha.reduction"
@@ -760,7 +998,7 @@ data_long$CombinedName <- paste0(data_long$Water.Management.Subzone,"-Dairy-",da
 #ScenarioColumnOfInterest <- "Base.N.Leaching.(kg.N/ha/yr)"
 #ScenarioColumnOfInterest <- "Scenario.8.Fed.Farmers"
 #ScenarioColumnOfInterest <- "Scenario.10.-.LesserOfConsentedorPC2Table14.2"
-ScenarioColumnOfInterest <- "Scenario.12.-.ConsentedorBase.N.Leaching"
+#ScenarioColumnOfInterest <- "Scenario.12.-.ConsentedorBase.N.Leaching"
 
 #Note that data_long is a tibble, not a data frame which confuses me.
 data_long <- as.data.frame(data_long)
@@ -778,7 +1016,7 @@ CombinedClasses$LeachRates <- CombinedClasses$Load / CombinedClasses$Area_hectar
 
 I need to analyse each management sub zone to determine how much area (in hectares) each landuse-LUC combination takes up.
 Unfortunately there is a descrepancy between provided data for the sub management zones. Upon query to Horizons (See email exchange between Ton Snelder and Stephen Collins- Horizons on 17th Feb 2020), the zones within the "Water_Management_Subzones" ESRI shapefile trump those within the "Landuse_LUC Original". So the land use and LUC is extracted from one file, then intersected with the other.This proved to be problematic because both files had topology errors, primarily small circles in the boundaries, so the files had to be "cleaned". This proved to be most effectively done in QGIS. They were then intersected in QGIS, and then aggregated by RegiScLand, LUC_CLASS and Zone_Code in R (see below) before being saved as a file so that the painfull process doesn't have to be repeated.
-```{r}
+```{r Analyse-management-sub-zones}
 
 #Intersect the Landuse and LUC with the sub-management zones
 #SubZoneLanduseLUCSpatial <- intersect(LanduseLUCSpatial,SubZonePolygons)
@@ -818,7 +1056,7 @@ SubZoneLanduseLUCSpatial$CombinedClassName <- with(SubZoneLanduseLUCSpatial@data
 
 
 Get the "nzsgmnt" attributes of the lowest reach in each of the management subzones
-```{r}
+```{r Get-lowest-reach-attributes}
 SubZoneOfEachReach <- RECReachNetwork %over% SubZonePolygons #Note this takes about a minute to do
 RECReachNetwork$SubZoneCode <- SubZoneOfEachReach$Zone_Code
 
@@ -839,7 +1077,7 @@ ManagementSubZoneOutletReachesDF <- do.call(rbind,ManagementSubZoneOutletReaches
 
 
 From the load sites, point source sites, and water management subzones outlets, create the required network
-```{r}
+```{r Create-CASM-network}
 AllPoints <- c(MeasurementSites$nzsegment, PointSourceSites$nzsegment, ManagementSubZoneOutletReachesDF$nzsgmnt)
 LoadNetwork <- lapply(AllPoints, function(x) {DownstreamReachFinder(RECNetwork = RECReachNetwork, SourceReach = x)} )
 CompleteNetwork <- unlist(LoadNetwork)
@@ -851,7 +1089,7 @@ CompleteSpatialNetwork@data$CASMDomain <- (CompleteSpatialNetwork %over% CASMMod
 ```
 
 Then create a tributary table ready for CASM
-```{r}
+```{r Create-CASM-tributary-table}
 
 NetworkLabelList <- NetworkLabeler(CompleteSpatialNetwork)
 
@@ -873,7 +1111,7 @@ TributaryConnectionTable <- TributaryConnectionCreator(RECNetwork = CompleteSpat
 Then create a point source table ready for CASM,
 a measurement site table ready for CASM,
 and a diffuse inputs table ready for CASM
-```{r}
+```{r Create-CASM-point-source-table}
 #Create a dataframe of just the nzsegment number and the site name
 PointSourceNodes <- PointSourceSites[,c("Site.Name","nzsegment")]
 
@@ -896,7 +1134,7 @@ PointSourceTable$"Annual Load (kg/yr)" <- round(PointSourceSites$TN.kgpy[match(P
 
 
 #Repeat for the measurement sites
-```{r}
+```{r Create-CASM-measurement-site-table}
 MeasurementSiteNodes <- MeasurementSites[,c("sID","nzsegment")]
 names(MeasurementSiteNodes) <- c("NodeName","nzsgmnt")
 MeasurementSiteTable <- CASMNodeTablePreparer(CASMRECNetwork = CompleteSpatialNetwork, NetworkLabelList = NetworkLabelList, TributaryConnectionTable = TributaryConnectionTable,CASMNodes= MeasurementSiteNodes)
@@ -914,7 +1152,7 @@ MeasurementSiteTable$'Load Uci (kg/yr)' <- round(MeasurementSites$load_Uci[match
 ```
 
 #Repeat for diffuse inputs. This is a special case, because once the points have been found, they need to be joined with all the different landuse/LUC options
-```{r}
+```{r Create-CASM-diffuse-inputs-table}
 #Start with all the diffuse source input nodes. These are the sub-management zone outlets
 DiffuseInputsSiteNodes <- ManagementSubZoneOutletReachesDF
 names(DiffuseInputsSiteNodes) <- c("NodeName","nzsgmnt")
@@ -958,7 +1196,7 @@ names(DiffuseInputsSiteExtendedTable) <- c("Landuse","LUC","Zone_Code","Polygon 
 For Horizon's Scenario 5, an expansion of Dairy by 11 % is required in each water management zone.
 The following assumes that dairy areas of the same LUC class as the sheep and beef areas already exist. This appears to be the case.
 
-```{r}
+```{r Dairy-expansion-scenario-preparation}
 #Find the amount of dairy in each water management sub zone
 DairyConversionData <- DiffuseInputsSiteExtendedTable
 DairyAreas <- aggregate(DairyConversionData[,c("Land Area (ha)")], by = list(Landuse = DairyConversionData[,"Landuse"] == "Dairy",Zone_Code = DairyConversionData[,"Zone_Code"]),FUN = sum)
@@ -1042,7 +1280,7 @@ Adjustment is done for each node class that exists in the "CombinedClasses" data
 The leach load is found for that part of the node's area that is not accounted for in the "combinedclasses". This is added to the "Combinedclasses" load, and the total is divided by the node area to return it to a rate.
 *****Only run this chunk if you want special scenario stuff output********
 
-```{r}
+```{r Adjust-Diffuse-table-for-sccenarios}
 CombinedClasses$TotalNodeArea <- DiffuseInputsSiteExtendedTable$'Land Area (ha)'[match(CombinedClasses$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
 CombinedClasses$NodeAveLeachRate <- DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"[match(CombinedClasses$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
 CombinedClasses$AreaDiff <- CombinedClasses$TotalNodeArea - CombinedClasses$Area_hectares
@@ -1091,7 +1329,7 @@ DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"[match(CombinedClasses$C
 
 
 plot
-```{r}
+```{r Plot}
 #Reproject the other spatial data to the maps projection ready for plotting
 SpatialData <- list(MeasurementSites=MeasurementSitesSpatial, PointSourceSites=PointSourceSitesSpatial,
                     SubZones=SubZonePolygons,RiverNetwork=CompleteSpatialNetwork)
@@ -1116,7 +1354,7 @@ The tributary connection table needs to be converted to an Excel Spreadsheet.
 
 
 I need to create an excel table of CASM-Nodes, CASM-Reach-Names, CASM-Reach-Locations, CASM-Reach-Areas, CASM-Reach-Exp.Coeff
-```{r}
+```{r Create-CASM-input-spreadsheet}
 
 
 Out <- createWorkbook()
@@ -1138,7 +1376,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario13_HorticultureinSWTo46OroxCalibrated.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario13B_HorticultureInSWestTo46OrCoxCalibrated.xlsx"), overwrite = T)
 ```
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
@@ -1146,7 +1384,7 @@ saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario13_Horti
  
  Then, as a check, get the load for each zone-landuse-LUC combination, and sum in each zone.
  It would also be good to add a check of total load in catchments upstream of a water quality network being more than the total load measured. If they were less, then the attenuation would have to be greater than 1!
-```{r}
+```{r Check-zone-load-totals}
 #Note that to ensure I am comparing apples with apples, I am using the SubZoneLandUseLUCSpatial data to find the SubZone areas (rather than using the pre-prepared cleaned sub zone spatial data which has been "cleaned" so is slightly different in area!!)
 test <- unionSpatialPolygons(SubZoneLanduseLUCSpatial,IDs = SubZoneLanduseLUCSpatial@data$Zone_Code )
 testid <- sapply(slot(test, "polygons"), function(x) slot(x, "ID"))
@@ -1170,12 +1408,3 @@ charlie$load_diff_percent <- round(charlie$load_diff / charlie$loads * 100,0)
 print(charlie)
 ```
 
- need to check that the output I generate from the scenarios is reasonable with respect to the original data which was used to calibrate the CASM model.
- The first check is to ensure that allthe points and distances are the same.
- The second check is to compare the leach rates for the different sumanagement zone- land use - LUC areas and identify those that have changed. Make sure that those that have changed are the correct ones.
- Check the amount that they have changed by.
- 
-```{r}
-
-```
- 
