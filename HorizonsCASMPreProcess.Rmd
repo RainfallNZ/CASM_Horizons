@@ -17,8 +17,13 @@ Some functions
 ```{r Some-functions}
 
 
-#Create scenario leach rate rasters from Horizon's Plan change 2 Table 14.2, from the raster of the Sub-management Zone-Land Use-LUC (and the look up table which #converts the class numbers to descriptions), and the "current" MPI-based leach rate raster
-#' Function to create scenario leach rate rasters based on reginal plan leach rate limits, and optionally landuse and leach rate mitigation. 
+#' Leach Rate raster creator for scenarios
+#'
+#' \code{ScenarioLeachRateRaster} prepares a leach rate raster based on an existing leach rate raster and various optional parmaters.
+#'
+#' This function enables creation of new leach rate rasters that comply to Horizon's Plan Change 2 Table 14.2, 
+#' or from land-use-based leach rate changes. The function uses the raster of the Sub-management Zone-Land Use-LUC, 
+#' the look up table which converts the class numbers to descriptions, and the "current" MPI-based leach rate raster.
 #' @param CurrentLeachRateRaster The base leach rate raster with which to modify
 #' @param LUC_To_Leach_Table A csv file which has the Table 14.2 leach rates for different Land Use Capablities, and years.
 #' @param ZLLRaster A raster of the zone, landue and land use capability combination codes. Same extent and resolution as CurrentLeachRateRaster
@@ -30,7 +35,6 @@ Some functions
 #' @param Mitigation Ignored if Landuse is "NA". The amount of reduction. If an integer then the mitigation is absolute leach rate to be reduced by (units are annual kg/ha), if a decimal less than 1, the mitigation is a relative drop in leach rate. These values are to be applied to the landuse specified by the Landuse parameter.
 #' @param MPIPredictorRasterFile Raster stack of the leach rate predictors
 #' @return A raster of leach rates with a side-effect of a multi-band geo tiff file of the leach rates, complete with the constituent rasters.
-#' @export
 ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate, 
                                     LUC_To_Leach_Table = LeachRateLimits, 
                                     ZLLRaster = ZoneLanduseLUCRaster, 
@@ -47,7 +51,7 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate,
   #Parse the Combined name into its constituent parts
   ZoneLanduseLUC_LUT$Zone <- as.factor(sub('-.*','',ZoneLanduseLUC_LUT$CombinedClassName))
   ZoneLanduseLUC_LUT$ZoneNo <- as.numeric(ZoneLanduseLUC_LUT$Zone)
-  ZoneLanduseLUC_LUT$Landuse <- as.factor(sub('.*-(.*)-.*','\\1',ZoneLanduseLUC_LUT$CombinedClassName))
+  #ZoneLanduseLUC_LUT$Landuse <- as.factor(sub('.*-(.*)-.*','\\1',ZoneLanduseLUC_LUT$CombinedClassName))
   ZoneLanduseLUC_LUT$Landuse <- as.factor(sub('^[^-]*-(.*)-.*','\\1',ZoneLanduseLUC_LUT$CombinedClassName))
   ZoneLanduseLUC_LUT$LanduseNo <- as.numeric(ZoneLanduseLUC_LUT$Landuse)                                         
   ZoneLanduseLUC_LUT$LUC <- as.numeric(sub('.*-','',ZoneLanduseLUC_LUT$CombinedClassName))
@@ -447,6 +451,33 @@ LeachRateReclassifier <- function(LeachRates = LeachRate, OldValue = 71, NewValu
   OutLeachRates <- reclassify(LeachRates, rcl = matrix(c(OldValue,NewValue),ncol=2))
   return(OutLeachRates)
 }
+
+#' Compare water management sub zone loads between two CASM input files
+#'
+#' \code{LoadComparer} returns the difference in loads for each water management sub zone of two CASM input files
+#'
+#' 
+#' This function is intended for use to check how the loads, described by the "Diffuse Inputs"
+#' sheet in each CASM input spreadsheet, differ. 
+#' @param CASMFiles A vector of file names of the CASM input files to be compared
+#' @return A dataframe with absolute difference and percent difference of management sub-zone loads.
+#' @examples
+#' LoadComparer(CASMFiles = c(file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_3b_IntensiveTable14_2Year20OrConsentedWithCoxCalibrated.xlsx"),SecondCASMFIle = file.path(DataDirectory,"Test.xlsx")))
+LoadComparer <- function(CASMFiles = c("CASMInputData1.xlsx","CASMInputData2.xlsx")){
+  #Read the "Diffuse Inputs" tab from each input spreadsheet
+  ZoneLoadList <- lapply(CASMFiles, function(CASMFile){
+  DiffuseData <- read.xlsx(CASMFile,sheet = "Diffuse Inputs")
+  DiffuseData$Zone_Code <- sub("-.*$","",DiffuseData$Node.Name)
+  DiffuseData$load <- DiffuseData$`Land.Area.(ha)` * DiffuseData$`Export.Coeff.(kg/ha/yr)`
+  ZoneLoads <- ddply(DiffuseData, "Zone_Code", function(x) sum(x$load, na.rm=TRUE))
+  return(ZoneLoads)
+  })
+  CombinedZones <- merge(ZoneLoadList[[1]],ZoneLoadList[[2]],by="Zone_Code")
+  CombinedZones$AbsDiff <- CombinedZones[,3] - CombinedZones[,2]
+  CombinedZones$PctDiff <- round(CombinedZones$AbsDiff/CombinedZones[,2]*100,1)
+  return(CombinedZones)
+}
+
 ```
 
 ## Scenario Preparation
@@ -458,27 +489,81 @@ The following is an attempt to describe how to re-create each of the different s
 It is a good idea to repeat a previous scenario and check output is identical before preparing variants.
 In no particular order:  
 
-### Horizons Scenario 3e-h
+### Horizons Scenario 0[a,b]
 
 Naming system| Scenario number/name
 -------------|-----------  
-Horizons                 | 3 
-Streamlined Environmental| 5 
-Report                   | Proposed Year 20 Pathway 
-CASM input filename      | CASM-Inputs_SEL_Scenario_5a_IntensiveTable14_2Year20OrConsentedOrDH9WithCoxCalibrated.xlsx
+Horizons                 | 0[a,b] 
+Streamlined Environmental| 2[a,b] 
+Report                   | Operative Consented 
+CASM input filename      | CASM-Inputs_SEL_Scenario_2[a,b]_IntensiveoperativeTable14_2Year[5,20]OrConsentedWithCoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to MPI Leach rate tif file.  
+4. Run the "load files" chunk.
+5. Update the LeachRate raster using the ScenarioLeachRateRaster function with Intensive set to "TRUE", Landuse set to "NA", plan set to "Existing" and year set to [5,20]
+6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.  
+7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+8. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
+9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name. 
+11. Check that the output file is reasonable by running the CASMScenarioInputChecker function.
+
+***
+
+### Horizons Scenario 1[a,b]
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 1[a,b] 
+Streamlined Environmental| 3[a,b] 
+Report                   | Proposed Consented 
+CASM input filename      | CASM-Inputs_SEL_Scenario_3[a,b]_IntensiveTable14_2Year[5,20]OrConsentedWithCoxCalibrated.xlsx
+
+#### Scenario preparation process
+as for scenario 1 except in step 5 set plan to "PC2"
+
+***
+
+### Horizons Scenario 2[a,b,c,d]
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 2[a,b,c,d] 
+Streamlined Environmental| 4[a,b,c,d] 
+Report                   | Proposed Year 5 Pathway 
+CASM input filename      | CASM-Inputs_SEL_Scenario_4[a,b,c,d]_IntensiveTable14_2Year50OrConsentedOrDH9WithCoxCalibrated.xlsx
 
 
 #### Scenario preparation process
 1. Run the "Load Library" chunk
 2. Run the "Some functions" chunk
-3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to Intensive Farm Land use PC2 table 14.2 tif file.  
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to to MPI Leach rate tif file.  
 4. Run the "load files" chunk.
-5. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.  
-6. Run the chunks to follow in turn until after the Diffuse Table chunk.  
-7. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
-8. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
-9. Edit (then run) the Excel output chunk so that the output excel file has a sensible name. 
-10. Check that the output file is reasonable by running the CASMScenarioInputChecker function.
+5. Update the LeachRate raster using the ScenarioLeachRateRaster function with Intensive set to "TRUE", Landuse set to "NA", plan set to "PC2" and year set to 5
+6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.  
+7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+8. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
+9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name. 
+11. Check that the output file is reasonable by running the CASMScenarioInputChecker function.
+
+***
+
+### Horizons Scenario 3[e,f,g,h]
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 3[e,f,g,h] 
+Streamlined Environmental| 5[a,b,c,d] 
+Report                   | Proposed Year 20 Pathway 
+CASM input filename      | CASM-Inputs_SEL_Scenario_5a_IntensiveTable14_2Year20OrConsentedOrDH9WithCoxCalibrated.xlsx
+
+
+#### Scenario preparation process
+as above except in step 5 set year to 20
 
 ***
 
@@ -492,16 +577,7 @@ Report                   | Proposed Year-20 Pathway [E,F]
 CASM input filename      | CASM-Inputs_Horizons_Scenario3[i,j]_IntensiveTable14_2Year20OrConsentedOrDH[9,18]AllDairyWithCoxCalibrated.xlsx
 
 #### Scenario preparation process
-1. Run the "Load Library" chunk
-2. Run the "Some functions" chunk
-3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
-4. Run the "load files" chunk.
-5. Update the LeachRate raster using the ScenarioLeachRateRaster function with Intensive set to "TRUE", Landuse set to "Dairy" and Mitigation set to 9 (for 3i) and 18 (for 3j)
-6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.
-7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
-8. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
-9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
-10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
+as above except in step 5 set Landuse to "Dairy" and Mitigation set to 9 (for 3i) and 18 (for 3j)
 
 ***
 
@@ -521,16 +597,16 @@ CASM input filename      | CASM-Inputs_Horizons_Scenario3[k,l]_IntensiveTable14_
 4. Run the "load files" chunk.
 5. Copy the LeachRate to a LeachRateCC
 6. Create dairy-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Intensive set to "TRUE",  Landuse set to "Dairy" and mitigation set to 9 (for 3k) and 18 (for 3l)
-6. Create sheep-and-beef-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Intensive set to "TRUE", Landuse set to "Sheep and/or Beef" and mitigation set to 9 (for 3k) and 18 (for 3l)
-7. Create hort-veg-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Intensive set to "TRUE", Landuse set to "Horticulture-Veg" and mitigation set to 0.36
-8. Create hort-other-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Intensive set to "TRUE",  Landuse set to "Horticulture-Other" and mitigation set to 0.36
-9. Get the maximum of the hort-veg and hort-other leach rates using max(stack(leachrateveg,leachrateother))
-10. Get the maximum of the veg and the dairy and sheep and beef leach rates for each of the mitigation variants, using the same method as in 9 above
-6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.
-7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
-8. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
-9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
-10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
+7. Create sheep-and-beef-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Intensive set to "TRUE", Landuse set to "Sheep and/or Beef" and mitigation set to 9 (for 3k) and 18 (for 3l)
+8. Create hort-veg-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Intensive set to "TRUE", Landuse set to "Horticulture-Veg" and mitigation set to 0.36
+9. Create hort-other-adjusted LeachRate rasters using the ScenarioLeachRateRaster function with leachrate set to LeachRateCC, Intensive set to "TRUE",  Landuse set to "Horticulture-Other" and mitigation set to 0.36
+10. Get the maximum of the hort-veg and hort-other leach rates using max(stack(leachrateveg,leachrateother))
+11. Get the maximum of the veg and the dairy and sheep and beef leach rates for each of the mitigation variants, using the same method as in 9 above
+12. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.
+13. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+14. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
+15. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+16. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
 
 ***
 
@@ -992,9 +1068,9 @@ data_long$CombinedName <- paste0(data_long$Water.Management.Subzone,"-Dairy-",da
 #ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(f).-.12kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(g).-.15kg/ha.reduction"
-ScenarioColumnOfInterest <- "Scenario.3(h).-.18kg/ha.reduction"
+#ScenarioColumnOfInterest <- "Scenario.3(h).-.18kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.1(a).New.Table.-.Y5"
-#ScenarioColumnOfInterest <- "Scenarios.1(b).and.2(e).New.Table.-.Y20"
+ScenarioColumnOfInterest <- "Scenarios.1(b).and.2(e).New.Table.-.Y20"
 #ScenarioColumnOfInterest <- "Baseline.Existing.Table.-.Y20"
 #ScenarioColumnOfInterest <- "Baseline.Existing.Table.-.Y5"
 #ScenarioColumnOfInterest <- "Base.N.Leaching.(kg.N/ha/yr)"
@@ -1377,8 +1453,15 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario3j_IntensiveTable14_2Year20OrConsentedOrDH18AllDairyWithCoxCalibrated.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"Test.xlsx"), overwrite = T)
 ```
+
+Remember to use:
+CASMScenarioInputChecker()
+and/or:
+LoadComparer()
+To check output is as expected.
+
  By way of a check, it will be helpful to compare the total sub-management zone loads from the gridded leachrate data with the total sub-management zone loads from the zone/landuse/LUC data.
  Start with the leach rate raster data, and get the average leachrate for each zone and multiply by the area.
  Note that  I need to use the subzones from the SubZone
