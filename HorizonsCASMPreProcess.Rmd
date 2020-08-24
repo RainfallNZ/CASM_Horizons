@@ -14,12 +14,11 @@ if (!require(CASMPrePostProcessor)) install_github("rainfallnz/CASMPrePostProces
 ```
 
 Some functions
-```{r Some-functions}
-
+```{r}
 
 #' Leach Rate raster creator for scenarios
 #'
-#' \code{ScenarioLeachRateRaster} prepares a leach rate raster based on an existing leach rate raster and various optional parmaters.
+#' ScenarioLeachRateRaster prepares a leach rate raster based on an existing leach rate raster and various optional parmaters.
 #'
 #' This function enables creation of new leach rate rasters that comply to Horizon's Plan Change 2 Table 14.2, 
 #' or from land-use-based leach rate changes. The function uses the raster of the Sub-management Zone-Land Use-LUC, 
@@ -454,7 +453,7 @@ LeachRateReclassifier <- function(LeachRates = LeachRate, OldValue = 71, NewValu
 
 #' Compare water management sub zone loads between two CASM input files
 #'
-#' \code{LoadComparer} returns the difference in loads for each water management sub zone of two CASM input files
+#' LoadComparer returns the difference in loads for each water management sub zone of two CASM input files
 #'
 #' 
 #' This function is intended for use to check how the loads, described by the "Diffuse Inputs"
@@ -610,51 +609,27 @@ CASM input filename      | CASM-Inputs_Horizons_Scenario3[k,l]_IntensiveTable14_
 
 ***
 
-### Horizons Scenario 12a, 12b 12c
+### Horizons Scenario 12a, 12b
 
 Naming system| Scenario number/name
 -------------|-----------  
-Horizons                 | 12[a,b,c]
+Horizons                 | 12[a,b]
 Streamlined Environmental| N/A
-Report                   | Post-regulation[A,B,C]  
-CASM input filename      | CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOr[HorticultureInSWestTo[46,32]]CoxCalibrated.xlsx
+Report                   | Post-regulation[A,B]  
+CASM input filename      | CASM-Inputs_Horizons_Scenario12[A,B]_{2017PointSources_]ConsentedOrBaseOrCoxCalibrated.xlsx
 
 #### Scenario preparation process
 1. Run the "Load Library" chunk
 2. Run the "Some functions" chunk
-3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+3. Edit the "Set-directories-and-filenames" chunk so that the "PointSourceYear" variable matches the scenario variant (A=2012, B= 2017)
+4. Edit (then run) "Set-directories-and-filenames" chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
 4. Run the "load files" chunk.
-5. Update the LeachRate raster using the LeachRateReclassifier function. 71 is unique to south west climate vegetables, so change this to whatever is required.
 6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3. 
 7. Run the chunks to follow in turn until after the Diffuse Table chunk.  
-8. DON'T run the Scenario 5 chunk 
+8. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
 9. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
 10. Edit (then run) the Excel output chunk so that the output excel file has a sensible name. 
 11.Check that the output file is reasonable by running the CASMScenarioInputChecker function.  
-
-***
-
-### Horizons Scenario 12d
-
-Naming system| Scenario number/name
--------------|-----------  
-Horizons                 | 12d 
-Streamlined Environmental| N/A
-Report                   | Post-regulationD  
-CASM input filename      | CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrHorticultureInSWestTo46OrCoxCalibrated2017PointSources.xlsx
-
-#### Scenario preparation process
-1. as above
-2. as above
-3. as above. But also edit the PointSourceYear to be 2017
-4. as above.
-5. as above.
-6. as above
-7. as above  
-8. as above 
-9. as above  
-10. as above 
-11. as above
 
 ***
 
@@ -689,6 +664,7 @@ R data files
 Spatial shape files (either points, lines or polygons) in ESRI format
 Raster files in geotif format
 Text files in comma separated variable format
+
 
 Note that some of these are filenames of files that are created by the script, or, confusingly, may be created if deemed necesary.
 ```{r Set-directories-and-filenames}
@@ -1065,12 +1041,12 @@ data_long$CombinedName <- paste0(data_long$Water.Management.Subzone,"-Dairy-",da
 #ScenarioColumnOfInterest <- "Scenario.2(b).-.12kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.2(c).-.15kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.2(d).-.18kg/ha.reduction"
-#ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
+ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(f).-.12kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(g).-.15kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(h).-.18kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.1(a).New.Table.-.Y5"
-ScenarioColumnOfInterest <- "Scenarios.1(b).and.2(e).New.Table.-.Y20"
+#ScenarioColumnOfInterest <- "Scenarios.1(b).and.2(e).New.Table.-.Y20"
 #ScenarioColumnOfInterest <- "Baseline.Existing.Table.-.Y20"
 #ScenarioColumnOfInterest <- "Baseline.Existing.Table.-.Y5"
 #ScenarioColumnOfInterest <- "Base.N.Leaching.(kg.N/ha/yr)"
@@ -1453,7 +1429,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"Test.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario3i_IntensiveTable14_2Year20OrConsentedOrDH9AllDairyVegLess36PctWithCoxCalibrated.xlsx"), overwrite = T)
 ```
 
 Remember to use:
