@@ -7,6 +7,8 @@ Load libraries
 ```{r Load-libraries}
 if (!require(rgdal)) install.packages("rgdal"); library(rgdal)   
 if (!require(raster)) install.packages("raster"); library(raster)
+if (!require(sp)) install.packages("sp"); library(sp)
+if (!require(spatialEco)) install.packages("spatialEco"); library(spatialEco)
 if (!require(plyr)) install.packages("plyr"); library(plyr)
 if (!require(openxlsx)) install.packages("openxlsx"); library(openxlsx)                #needed to load excel data
 if (!require(devtools)) install.packages("devtools"); library(devtools)                #Needed to load libraries from github
@@ -102,11 +104,8 @@ ScenarioLeachRateRaster <- function(CurrentLeachRateRaster = LeachRate,
   
   writeRaster(ScenarioRasters,file.path(GISDataDirectory,"ScenarioLeachRasters.tif"),overwrite=TRUE)
   
-  
   return(ScenarioLeachRate)
 }
-
-
 
 #Function to find the total area of each Climate-Plant Available Water class within the "target" Dairy-Land Use Capability areas, and all the irrigated sheep and beef - land use capability combinations.
 
@@ -401,9 +400,24 @@ PotatoLeachRateCreator <- function(CurrentLeachRateRaster = LeachRate, PotatoLea
   return(NewLeachrates)
 }
 
-#***********************************************************
-#Function to find the leach rate for a vector of WMSZ, LUC, Landuse combinations
-#Returns the average leach rate for all cells that match
+
+
+#' Get the average "Dairy" leach rate for areas that meet a water management sub zone, landuse and landuse capability criteria.
+#'
+#' Calculations are done using raster maths. That is, areas from the ZoneLandUseLUC raster that meet the criteria are found.
+#' Then the "Dairy" leach rates for each cell in those areas are found. 
+#' From these the requested summary statistic is calculated.
+#' This function was prepared to calculate how water management sub-zone leach rates need to be adjusted if sheep and beef
+#' are converted to Dairy land use.
+#' @param LeachRates The raster of leach rates from which the average of the selected areas are to be calulcated
+#' @param Predictors The raster stack of predictors used to determine the Dairy leach rates
+#' @param ZoneLandUseLUC The raster of the combined water amanagement zone, landuse and land use capability. 
+#' This raster has a raster attribute table which defines the class combinations.
+#' @param ZoneLanduseLUCOfInterest A three column data frame of water management zones, land usees and 
+#' land use capabilities to be summarised
+#' @param MPITable The data frame look up table between the predictors and leach rate.
+#' @return A single value
+
 DairyLeachRateGeterer <- function(LeachRates = LeachRate,
                                   Predictors = PredictorRaster,
                              ZoneLandUseLUC = ZoneLanduseLUCRaster,
@@ -412,9 +426,10 @@ DairyLeachRateGeterer <- function(LeachRates = LeachRate,
 
   #Combine the criteria
   Criteria <- paste(ZoneLanduseLUCOfInterest,collapse="-")
-    
+
   #Create a mask of the ZoneLandUseLUC raster for the area that matches the criteria
   RasterValue <- which(levels(ZoneLandUseLUC)[[1]]$category == Criteria)
+
     ZLLMask <- ZoneLandUseLUC == RasterValue
     ZLLMask[ZLLMask <= 0] <- NA
     #Get the predictor values for each cell
@@ -437,10 +452,78 @@ DairyLeachRateGeterer <- function(LeachRates = LeachRate,
 
     #Look up the value, if they were "Dairy" and not irrigated
     DairyLeachRates <- merge(PredictorValues,MPITable[,c("Climate","LU","PAW","Irri","Irgtd","N_loss")],all.x = TRUE)
+    
     #average them
-    AverageValue <- mean(DairyLeachRates$N_loss,na.rm=TRUE)
-    return(AverageValue)
+    SummaryValue <- mean(DairyLeachRates$N_loss,na.rm=TRUE)
+
+    return(SummaryValue)
 }
+
+
+#' Increase Dairy leach rates to WMZ values
+#'
+#' DairyLeachTOWMZRates prepares a leach rate raster based on an existing leach rate raster and increases all the Dairy
+#' areas to the leach rates for their water management zone provided in a data frame
+#' This function helps prepare the DairySector variant B leach rates, before adjustment for the consented and unconsented-known
+#' @param LeachRateRaster A raster of the leach rates
+#' @param ZLLRaster A raster of the zone, landue and land use capability combination codes. Same extent and resolution as CurrentLeachRateRaster
+#' @param CombinedClassesDF A dataframe of Node names, loads, areas and leach rates (outpot from the Some-scenario-data-preparation) #' to be aggregated to water management zones and applied to the Dairy areas
+#' @return A raster of leach rates
+DairyLeachTOWMZRates <- function(LeachRateRaster = LeachRate, 
+                                    ZLLRaster = ZoneLanduseLUCRaster,
+                                   CombinedClassesDF = CombinedClasses) {
+  #Parse the nodenames in the CombinedClases data frame to provide the water management zone
+  CombinedClassesDF$SubZones <- sub('-.*','',CombinedClassesDF$CASMNodeNames)
+  CombinedClassesDF$WMZ    <- sub("[a-z]$","",CombinedClassesDF$SubZones)
+  
+  #Aggregate loads and areas on water management zones
+  WMZDairyRates <- aggregate(CombinedClassesDF[,c("Area_hectares","Load")]*!is.na(CombinedClassesDF$Load), 
+                          by = list(CombinedClassesDF$WMZ), FUN = sum, na.rm=TRUE)
+  names(WMZDairyRates)[1] <- "WMZ"
+  
+  #Calculate new leach rates
+  WMZDairyRates$LeachRates <- WMZDairyRates$Load / WMZDairyRates$Area_hectares
+   
+  #Parse the category of the ZLL raster into its constituent parts
+  SubZones    <- sub('-.*','',levels(ZLLRaster)[[1]]$category)
+  Zones       <- sub("[a-z]$","",SubZones)    
+  ZoneFactors <- as.factor(Zones)
+  ZonesRaster <- reclassify(ZLLRaster,matrix(c(ZLLRaster@data@attributes[[1]]$ID,ZoneFactors),ncol=2))
+  ZonesRaster <- ratify(ZonesRaster)
+  rat <- levels(ZonesRaster)[[1]]
+  rat$Zones <- levels(ZoneFactors)
+  levels(ZonesRaster) <- rat
+
+  Landuse                   <- sub('^[^-]*-(.*)-.*','\\1',levels(ZLLRaster)[[1]]$category)
+  LanduseFactors <- as.factor(Landuse)
+  LandUseRaster <- reclassify(ZLLRaster,matrix(c(ZLLRaster@data@attributes[[1]]$ID,LanduseFactors),ncol=2))
+  LandUseRaster <- ratify(LandUseRaster)
+  rat <- levels(LandUseRaster)[[1]]
+  rat$Landuse <- levels(LanduseFactors)
+  levels(LandUseRaster) <- rat
+
+  #Create a Dairy Mask
+  DairyMask <- LandUseRaster == which(levels(LandUseRaster)[[1]]$Landuse == "Dairy")
+  #browser()
+  #Check that the WMZ's in the WMZDairyRates exist in the raster, and remove them if they don't
+  WMZDairyRates <- WMZDairyRates[WMZDairyRates$WMZ %in% unique(levels(ZonesRaster)[[1]]$Zones),]
+  
+  #Work through each WMZ and adjust the Dairy to the maximum of either the existing leach rate value or the leach rate provided
+  
+  #Initialise and output leach rate raster
+  OutputLeachRate <- LeachRateRaster
+  for (WMZ in WMZDairyRates$WMZ) {
+    #browser()
+    #Create a zone mask for the current zone
+    ZoneMask <- ZonesRaster == which(levels(ZonesRaster)[[1]]$Zones == WMZ)
+    
+    AdjustedLeachRate <- DairyMask * ZoneMask * WMZDairyRates[WMZDairyRates$WMZ == WMZ,'LeachRates']
+    OutputLeachRate <- max(OutputLeachRate,AdjustedLeachRate)
+  }
+
+  return(OutputLeachRate)
+}
+
 
 #*************************************************************************
 #Function to reclassify leach rates of a specific number to another number
@@ -455,7 +538,6 @@ LeachRateReclassifier <- function(LeachRates = LeachRate, OldValue = 71, NewValu
 #'
 #' LoadComparer returns the difference in loads for each water management sub zone of two CASM input files
 #'
-#' 
 #' This function is intended for use to check how the loads, described by the "Diffuse Inputs"
 #' sheet in each CASM input spreadsheet, differ. 
 #' @param CASMFiles A vector of file names of the CASM input files to be compared
@@ -602,6 +684,74 @@ CASM input filename      | CASM-Inputs_Horizons_Scenario3[k,l]_IntensiveTable14_
 10. Get the maximum of the hort-veg and hort-other leach rates using max(stack(leachrateveg,leachrateother))
 11. Get the maximum of the veg and the dairy and sheep and beef leach rates for each of the mitigation variants, using the same method as in 9 above
 12. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the appropriate column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.
+13. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+14. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
+15. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+16. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
+
+***
+### Horizons Scenario 5
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 5 
+Streamlined Environmental| N/A 
+Report                   | Operative Expansion
+CASM input filename      | CASM-Inputs_Horizons_Scenario5_11PctDairyExpanseOperativeTable14_2Year20WithCoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+4. Run the "load files" chunk.
+5. Update the LeachRate raster using the ScenarioLeachRateRaster function with Intensive set to "TRUE", Landuse set to "NA", plan set to "Existing" and year set to 20
+13. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+14. Run the "Dairy-expansion-scenario-preparation" chunk 
+15. Don't run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+16. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
+
+***
+### Horizons Scenario 8a
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 8 
+Streamlined Environmental| N/A 
+Report                   | Dairy Sector Pathway
+CASM input filename      | CASM-Inputs_Horizons_Scenario8_IntensiveTable14_2Year20OrConsentedOrFedFarmWithCoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+4. Run the "load files" chunk.
+5. Update the LeachRate raster using the ScenarioLeachRateRaster function with Intensive set to "TRUE", Landuse set to "NA", plan set to "PC2" and year set to 20
+6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the "Scenario.8.Fed.FarmersV2a" column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3.
+13. Run the chunks to follow in turn until after the Diffuse Table chunk.  
+14. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
+15. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
+16. Edit (then run) the Excel output chunk so that the output excel file has a sensible name.
+
+***
+
+### Horizons Scenario 8b
+
+Naming system| Scenario number/name
+-------------|-----------  
+Horizons                 | 8b 
+Streamlined Environmental| N/A 
+Report                   | Dairy Sector Pathway
+CASM input filename      | CASM-Inputs_Horizons_Scenario8b_IntensiveTable14_2Year20OrConsentedOrFedFarmGeneralisedWithCoxCalibrated.xlsx
+
+#### Scenario preparation process
+1. Run the "Load Library" chunk
+2. Run the "Some functions" chunk
+3. Edit (then run) the File name setting code chunk so that the leach rate raster file name is set to the MPI Leach rate tif.  
+4. Run the "load files" chunk.
+5. Update the LeachRate raster using the ScenarioLeachRateRaster function with Intensive set to "TRUE", Landuse set to "NA", plan set to "PC2" and year set to 20
+6. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the "Scenario.8.Fed.FarmersV2b" column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3. These data are needed to adjust the leach rate raster so all dairy areas in water management zones that have known unconsented Overseer data, have their Dairy leach rates match the adjustment that the unconsented known dairy farms would get.
+7. Run the "DairyLeachTOWMZRates" function to create a new leach rate raster
+8. Edit (then run) the "scenario preparation" chunk so that the "Scenario column of interest" is set to the "Scenario.8.Fed.FarmersV2a" column of the Horizons master spreadsheet. Note that this spreadsheet uses the Horizon's scenario numbering system i.e. scenario 3. This is required to adjust the consented and unconsented with Overseer data properties.
 13. Run the chunks to follow in turn until after the Diffuse Table chunk.  
 14. DON'T run the "Dairy-expansion-scenario-preparation" chunk 
 15. Run the "Adjust-Diffuse-table-for-sccenarios" chunk.  
@@ -960,7 +1110,7 @@ Some scenario data preparation.
 Chunk  to read in the Horizons property attributes table and to pare it down to useful stuff.
 ****This processing relies on the sub management zones provided in a spreadsheet from Horizons. Unfortunately some of those sub management zones have changed (split). The location information for the farms is available from "Master farm data for PC 2 evidence streams.xlsx within 
 https://harrcons.sharepoint.com/sites/HorizonsPlanChange_2 under Documents/Analysis/LeachingRates
-This location information needs to be used to update some of theses sites' attributes. 
+This location information needs to be used to update some of these sites' attributes. 
 ```{r Some-scenario-data-preparation}
 #Load a couple of special libraries
 if (!require("openxlsx")) install.packages("openxlsx"); library(openxlsx) #needed for reading excel spreadsheet
@@ -980,27 +1130,34 @@ FedFarmValues <- apply(HorizonsPropertyData,1, function(x) {
   NewLossRate <- if(x["Consented"] == "Y") as.numeric(x["Target.N.Leaching.(kg.N/ha/yr)"]) else min(Percentile75th,0.9 * as.numeric(x["Base"]),na.rm=TRUE)
 })
 
-{
-##Special preparation of a table that shows the 75th percentiles of water management zones, and the 90th percentage of individual properties
-#FedFarmValues <- apply(HorizonsPropertyData,1, function(x) {
-#  WaterManagementZone <- x["Water.Management.Zone"]
-#  WMZBaselines <- HorizonsPropertyData$`Base.N.Leaching.(kg.N/ha/yr)`[HorizonsPropertyData$Water.Management.Zone == WaterManagementZone]
-#  Percentile75th <- quantile(WMZBaselines,probs = 0.75,names=FALSE,na.rm=TRUE)
-#  NewLossRate <- if(x["Consented"] == "Y") as.numeric(x["Target.N.Leaching.(kg.N/ha/yr)"]) else min(Percentile75th,0.9 * as.numeric(x["Base"]),na.rm=TRUE)
-#  Output <- data.frame(Percentile75th = Percentile75th,Base0.9 = 0.9 * as.numeric(x["Base"]), FedFarmRate = NewLossRate)
-#  return(Output)
-#})
+#New version, as what was really wanted was the maximum of the Table value or the discretonary pathway via the 90th/75th Ptile calculation
+#Create a new column that meets the Federated Farmers criteria of the lesser of consented, or the maximum of PC2 year 20 or the the lesser of the 90 % of the overseer base values, or the 75th percentile of the Overseeer base vaues for the management zone
+FedFarmValuesV2 <- apply(HorizonsPropertyData,1, function(x) {
+  WaterManagementZone <- x["Water.Management.Zone"]
+  #browser()
+  PC2Year20 <- as.numeric(x["Yr.20.new.table"])
+  WMZBaselines <- HorizonsPropertyData$`Base.N.Leaching.(kg.N/ha/yr)`[HorizonsPropertyData$Water.Management.Zone == WaterManagementZone]
+  Percentile75th <- quantile(WMZBaselines,probs = 0.75,names=FALSE,na.rm=TRUE)
+  NewLossRate <- if(x["Consented"] == "Y") as.numeric(x["Target.N.Leaching.(kg.N/ha/yr)"]) else max(PC2Year20,min(Percentile75th,0.9 * as.numeric(x["Base"]),na.rm=TRUE),na.rm=TRUE)
+})
 
-#FedFarmTable <- do.call("rbind",FedFarmValues)
-#FedFarmTable <- cbind(HorizonsPropertyData,FedFarmTable)
-#FedFarmTable <- FedFarmTable[,c(1:3,9,13,15,16,61:63)]
-#write.table(FedFarmTable,file.path(DataDirectory,"FedFarmScenarioDataTable.csv"),quote = FALSE,sep=",")
-##Pare it down to just the data that is needed
-}
+#This is a variant of the Dairy sector calculation to enable idetification of leach rates for known-unconsented farms. This gets used to adjust unknown unconsented farms.
+#Create a new column that partially meets the Federated Farmers criteria for just the unconsented properties of the lesser of the 90 % of the overseer base values, or the 75th percentile of the Overseeer base vaues for the management zone
+FedFarmValuesV2b <- apply(HorizonsPropertyData,1, function(x) {
+  WaterManagementZone <- x["Water.Management.Zone"]
+  PC2Year20 <- x["Yr.20.new.table"]
+  WMZBaselines <- HorizonsPropertyData$`Base.N.Leaching.(kg.N/ha/yr)`[HorizonsPropertyData$Water.Management.Zone == WaterManagementZone]
+  Percentile75th <- quantile(WMZBaselines,probs = 0.75,names=FALSE,na.rm=TRUE)
+  NewLossRate <- if(x["Consented"] == "Y") NA else min(Percentile75th,0.9 * as.numeric(x["Base"]),na.rm=TRUE)
+})
+
 HorizonsPropertyData <- HorizonsPropertyData[,c(3,15,23:30,47:60)]
 
 #Add on the FedFarmers Scenario
 HorizonsPropertyData$Scenario.8.Fed.Farmers <- FedFarmValues
+HorizonsPropertyData$Scenario.8V2a.Fed.Farmers <- FedFarmValuesV2
+HorizonsPropertyData$Scenario.8V2b.Fed.Farmers <- FedFarmValuesV2b
+
 #there are some properties that are in multiple sub-management zones. Find them,divide them and share the LUC areas amongst the divided parts, adding the extra divided parts to the end of the master table
 {
   MultiSubManagementZoneProperties <- which(grepl(",",HorizonsPropertyData$Water.Management.Subzone,fixed=TRUE))
@@ -1035,13 +1192,12 @@ data_long <- data_long[data_long$hectares > 0,]
 #Create a combined sub management zone, landuse, LUC name
 data_long$CombinedName <- paste0(data_long$Water.Management.Subzone,"-Dairy-",data_long$LUC)
 
-#browser()
 #Calculate the diffuse load for each "Combined name" class for the scenario of interest. (This could be ammended to automagically work through each scenario)
 #ScenarioColumnOfInterest <- "Scenario.2(a).-.9kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.2(b).-.12kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.2(c).-.15kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.2(d).-.18kg/ha.reduction"
-ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
+#ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(f).-.12kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(g).-.15kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Scenario.3(h).-.18kg/ha.reduction"
@@ -1050,7 +1206,8 @@ ScenarioColumnOfInterest <- "Scenario.3(e).-.9kg/ha.reduction"
 #ScenarioColumnOfInterest <- "Baseline.Existing.Table.-.Y20"
 #ScenarioColumnOfInterest <- "Baseline.Existing.Table.-.Y5"
 #ScenarioColumnOfInterest <- "Base.N.Leaching.(kg.N/ha/yr)"
-#ScenarioColumnOfInterest <- "Scenario.8.Fed.Farmers"
+ScenarioColumnOfInterest <- "Scenario.8V2a.Fed.Farmers"
+#ScenarioColumnOfInterest <- "Scenario.8V2b.Fed.Farmers"
 #ScenarioColumnOfInterest <- "Scenario.10.-.LesserOfConsentedorPC2Table14.2"
 #ScenarioColumnOfInterest <- "Scenario.12.-.ConsentedorBase.N.Leaching"
 
@@ -1059,9 +1216,11 @@ data_long <- as.data.frame(data_long)
 
 data_long$Load <- data_long$"hectares" * data_long[,ScenarioColumnOfInterest]
 #Remove any NA values. For the base N leaching scenario there were two properties without base N leaching data.
+#For the FedFarmersV2b version the consented farms were set to NA to prevent their inclusion in the area and so get a correct estimate of leach rates for just the known unconsented farms (which is the value that is needed to apply to the unknown unconsented dairy farms)
 data_long <- data_long[!is.na(data_long$Load),]
 #Sum the LUC areas and loads for each sub management zone, but don't sum the areas for the properties without leach data (e.g. non-consented properties when considering consented leach rates)
 CombinedClasses  <- aggregate(data_long[,c("hectares","Load")]*!is.na(data_long$Load), by = list(data_long$CombinedName), FUN = sum, na.rm=TRUE)
+
 #rename the aggregated column names
 names(CombinedClasses) <- c("CASMNodeNames","Area_hectares","Load")
 CombinedClasses$LeachRates <- CombinedClasses$Load / CombinedClasses$Area_hectares
@@ -1289,7 +1448,7 @@ for (WaterManagementSubZone in DairyAreas$Zone_Code){
       DairyNodeOfInterest$`Discharge Location (km)` <- DairyNodeOfInterest$`Discharge Location (km)` + 0.005 #Need to adjust the location so that it is offset from all the other sub nodes.
       #DairyNodeOfInterest$`Export Coeff (kg/ha/yr)` <- 0
       #browser()
-      DairyNodeOfInterest$`Export Coeff (kg/ha/yr)` <- DairyLeachRateGeterer(ZoneLanduseLUCOfInterest = c(WaterManagementSubZone,"Sheep and/or Beef",LUC))
+      DairyNodeOfInterest$`Export Coeff (kg/ha/yr)` <- DairyLeachRateGeterer(ZoneLanduseLUCOfInterest = data.frame(WaterManagementSubZone,"Sheep and/or Beef",LUC))
       DairyConversionData <- rbind(DairyConversionData,DairyNodeOfInterest)
     }
     DairyAreaInThisLUC <- DairyNodeOfInterest$"Land Area (ha)"
@@ -1335,9 +1494,13 @@ Adjustment is done for each node class that exists in the "CombinedClasses" data
 The leach load is found for that part of the node's area that is not accounted for in the "combinedclasses". This is added to the "Combinedclasses" load, and the total is divided by the node area to return it to a rate.
 *****Only run this chunk if you want special scenario stuff output********
 
-```{r Adjust-Diffuse-table-for-sccenarios}
-CombinedClasses$TotalNodeArea <- DiffuseInputsSiteExtendedTable$'Land Area (ha)'[match(CombinedClasses$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
-CombinedClasses$NodeAveLeachRate <- DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"[match(CombinedClasses$CASMNodeNames,DiffuseInputsSiteExtendedTable$'Node Name')]
+```{r Adjust-Diffuse-table-for-scenarios}
+CombinedClasses$TotalNodeArea <- 
+  DiffuseInputsSiteExtendedTable$'Land Area (ha)'[match(CombinedClasses$CASMNodeNames,
+                                                        DiffuseInputsSiteExtendedTable$'Node Name')]
+CombinedClasses$NodeAveLeachRate <- 
+  DiffuseInputsSiteExtendedTable$"Export Coeff (kg/ha/yr)"[match(CombinedClasses$CASMNodeNames,
+                                                                 DiffuseInputsSiteExtendedTable$'Node Name')]
 CombinedClasses$AreaDiff <- CombinedClasses$TotalNodeArea - CombinedClasses$Area_hectares
 #Make sure the difference between the node area and the property area is not negative.
 #If it is, then assume that the land is from a "Sheep and/or Beef" land use (i.e. a new conversion or misclassified land)
@@ -1429,7 +1592,7 @@ addWorksheet(Out, "Diffuse Inputs")
 
 writeData(Out, sheet = "Diffuse Inputs", x = DiffuseInputsSiteExtendedTable[,c("Node Name","Receiving Stream","Discharge Location (km)","Land Area (ha)","Export Coeff (kg/ha/yr)")])
 
-saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario3i_IntensiveTable14_2Year20OrConsentedOrDH9AllDairyVegLess36PctWithCoxCalibrated.xlsx"), overwrite = T)
+saveWorkbook(Out, file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario8b_IntensiveTable14_2Year20OrConsentedOrFedFarmGeneralisedWithCoxCalibrated.xlsx"), overwrite = T)
 ```
 
 Remember to use:
