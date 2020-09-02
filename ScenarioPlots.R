@@ -493,34 +493,40 @@ SINData                       <- read.xlsx(SINDataFile,sheet = "AssessmentPointC
 {
 #CASM Input files with the Water Management Sub-Zone Export Coeficients
 BaselineFile    <- file.path(DataDirectory,"CASM-Inputs_CoxCalLeach.xlsx") #This is the model baseline using Cox calibrated data
-Scenario0_aFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_2a_IntensiveOperativeTable14_2Year5OrConsentedWithCoxCalibrated.xlsx") #Horizons "Baseline_Scenario 0a" This is consented values or operative Table 14.2 year 5 for all intensive land use.
-Scenario0_bFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_2b_IntensiveOperativeTable14_2Year20OrConsentedWithCoxCalibrated.xlsx") #Horizons "Baseline_Scenario 0b" This is consented values or operative Table 14.2 year 20 for all intensive land use.
-Scenario1_aFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_3a_IntensiveTable14_2Year5OrConsentedWithCoxCalibrated.xlsx") #Horizons "Scenario 1a" This is consented values or PC2 Table 14.2 year 5 for all intensive land use. 
-Scenario1_bFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_3b_IntensiveTable14_2Year20OrConsentedWithCoxCalibrated.xlsx") #Horizons "Scenario 1b" This is consented values or PC2 Table 14.2 year 20 for all intensive land use. 
-Scenario3_eFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_5a_IntensiveTable14_2Year20OrConsentedOrDH9WithCoxCalibrated.xlsx") #Horizons "Scenario 3e" This is consented values or Dave Horne reductions of 9 or PC2 Table 14.2 year 20 for all intensive land use.
-Scenario3_hFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_5d_IntensiveTable14_2Year20OrConsentedOrDH18WithCoxCalibrated.xlsx") #Horizons "Scenario 3h" This is consented values or Dave Horne reductions of 18 or PC2 Table 14.2 year 20 for all intensive land use.
+Scenario0_aFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_2a_IntensiveOperativeTable14_2Year5OrConsentedWithCoxCalibratedV2.xlsx") #Horizons "Baseline_Scenario 0a" This is consented values or operative Table 14.2 year 5 for all intensive land use.
+Scenario0_bFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_2b_IntensiveOperativeTable14_2Year20OrConsentedWithCoxCalibratedV2.xlsx") #Horizons "Baseline_Scenario 0b" This is consented values or operative Table 14.2 year 20 for all intensive land use.
+Scenario1_aFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_3a_IntensiveTable14_2Year5OrConsentedWithCoxCalibratedV2.xlsx") #Horizons "Scenario 1a" This is consented values or PC2 Table 14.2 year 5 for all intensive land use. 
+Scenario1_bFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_3b_IntensiveTable14_2Year20OrConsentedWithCoxCalibratedV2.xlsx") #Horizons "Scenario 1b" This is consented values or PC2 Table 14.2 year 20 for all intensive land use. 
+Scenario3_eFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_5a_IntensiveTable14_2Year20OrConsentedOrDH9WithCoxCalibratedV2.xlsx") #Horizons "Scenario 3e" This is consented values or Dave Horne reductions of 9 or PC2 Table 14.2 year 20 for all intensive land use.
+Scenario3_hFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_5d_IntensiveTable14_2Year20OrConsentedOrDH18WithCoxCalibratedV2.xlsx") #Horizons "Scenario 3h" This is consented values or Dave Horne reductions of 18 or PC2 Table 14.2 year 20 for all intensive land use.
   
-Scenario2_aFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_4a_IntensiveTable14_2Year5OrConsentedOrDH9WithCoxCalibrated.xlsx") #Horizons "Scenario 2a" This is consented values or Dave Horne reductions of 9 or PC2 Table 14.2 year 5 for all intensive land use.
+Scenario2_aFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_4a_IntensiveTable14_2Year5OrConsentedOrDH9WithCoxCalibratedV2.xlsx") #Horizons "Scenario 2a" This is consented values or Dave Horne reductions of 9 or PC2 Table 14.2 year 5 for all intensive land use.
 #ComparisonDataFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_4b_IntensiveTable14_2Year5OrConsentedOrDH12WithCoxCalibrated.xlsx") #Horizons "Scenario 2b" This is consented values or Dave Horne reductions of 12 or PC2 Table 14.2 year 5 for all intensive land use.
 #ComparisonDataFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_4c_IntensiveTable14_2Year5OrConsentedOrDH15WithCoxCalibrated.xlsx") #Horizons "Scenario 2c" This is consented values or Dave Horne reductions of 15 or PC2 Table 14.2 year 5 for all intensive land use.
-Scenario2_dFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_4d_IntensiveTable14_2Year5OrConsentedOrDH18WithCoxCalibrated.xlsx") #Horizons "Scenario 2d" This is consented values or Dave Horne reductions of 18 or PC2 Table 14.2 year 5 for all intensive land use.
+Scenario2_dFile <- file.path(DataDirectory,"CASM-Inputs_SEL_Scenario_4d_IntensiveTable14_2Year5OrConsentedOrDH18WithCoxCalibratedV2.xlsx") #Horizons "Scenario 2d" This is consented values or Dave Horne reductions of 18 or PC2 Table 14.2 year 5 for all intensive land use.
 
-X4File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario4_IntensiveOperativeTable14_2Year20WithCoxCalibrated.xlsx")                          #Horizons "Scenario 4" Operative Table 14.2 everywhere
-X5File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario5_11PctDairyExpanseOperativeTable14_2Year20WithCoxCalibrated.xlsx") #Horizons "Scenario 5" Dairy expansion with operative 14.2 everywhere
+X4File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario4_IntensiveOperativeTable14_2Year20WithCoxCalibratedV2.xlsx")                          #Horizons "Scenario 4" Operative Table 14.2 everywhere
+X5File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario5_11PctDairyExpanseOperativeTable14_2Year20WithCoxCalibratedV2.xlsx") #Horizons "Scenario 5" Dairy expansion with operative 14.2 everywhere
 X6File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario6_IntensiveOverseerBaseRatesWithCoxCalibrated.xlsx")                                #Horizons "Scenario 6" Overseer base rates
 X7File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario7_NaturalStateWithCoxCalibrated.xlsx")                                               #Horizons "Scenario 7" Native
-X8File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario8_IntensiveTable14_2Year20OrConsentedOrFedFarmWithCoxCalibrated.xlsx")               #Horizons "Scenario 8, Fed. Farmers.
+X8File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario8_IntensiveTable14_2Year20OrConsentedOrFedFarmWithCoxCalibratedV3.xlsx")               #Horizons "Scenario 8, Fed. Farmers.
+X8bFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario8b_IntensiveTable14_2Year20OrConsentedOrFedFarmGeneralisedWithCoxCalibrated.xlsx")               #Horizons "Scenario 8b, Fed. Farmers.
 X9aFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9a_PotatoOnLUC1to3DairyOrSheepAndBeef_CoxCalibrated.xlsx") #Horizons "Scenario 9a" Potatoes on LUC1 to 3 SHeep and Beef
 X9bFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9b_PotatoOnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
 X9cFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9c_Potato24OnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
 X9dFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9d_Potato13OnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
 X9eFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario9e_Potato9OnLUC1to3_CoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
 
-X10File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario10_LesserOfConsentedOrTable14.2_MPICoxCalibrated.xlsx") #Horizons "Scenario 10" lesser of consented or PC2 Table 14.2 Year 20 
+X10File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario10_LesserOfConsentedOrTable14.2_MPICoxCalibratedV2.xlsx") #Horizons "Scenario 10" lesser of consented or PC2 Table 14.2 Year 20 
 TonFile <- file.path(DataDirectory,"CASM-Inputs_Tons_Scenario_2017PointSources_CoxCalibrated.xlsx") #Ton's Scenario, 2017 point sources 
-X12File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrCoxCalibrated.xlsx")                                #Horizons "Scenario 6" Overseer base rates
+X12File  <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario12_ConsentedOrBaseOrCoxCalibratedV2.xlsx")                                #Horizons "Scenario 6" Overseer base rates
 X13File <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario13_HorticultureInSWestTo46OrCoxCalibrated.xlsx") #Horizons "Scenario 9b" Potatoes on LUC1 to 3
-
+X3iFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario3i_IntensiveTable14_2Year20OrConsentedOrDH9AllDairyVegLess36PctWithCoxCalibrated.xlsx")
+X3jFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario3j_IntensiveTable14_2Year20OrConsentedOrDH18AllDairyVegLess55PctWithCoxCalibrated.xlsx")
+X3kFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario3k_2017PointSources_IntensiveTable14_2Year20OrConsentedOrDH9AllDairyVegLess36PctWithCoxCalibrated.xlsx")
+X3lFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario3l_2017PointSources_IntensiveTable14_2Year20OrConsentedOrDH18AllDairyVegLess55PctWithCoxCalibrated.xlsx")
+X12bFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario12B_2017PointSource_ConsentedOrBaseOrCoxCalibrated.xlsx")
+X13bFile <- file.path(DataDirectory,"CASM-Inputs_Horizons_Scenario13B_HorticultureInSWestTo32OrCoxCalibrated.xlsx")
 }
 
 SubZoneShapeFile    <- file.path(GISDirectory,"Water_Management_Subzones_cleaned","Water_Management_Subzones_cleaned.shp")
@@ -694,7 +700,14 @@ BaselinePlotGenerator <- function(Reference = ReferenceScenarioColumn){
 # PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario3_e")
 # PlotGenerator(Comparison = "Scenario3_h",Reference = "Scenario1_b")
 # PlotGenerator(Comparison = "Scenario3_h",Reference = "X6")
-# PlotGenerator(Comparison = "Scenario3_h",Reference = "X10")
+# PlotGenerator(Comparison = "X3i",Reference = "Scenario0_b")
+# PlotGenerator(Comparison = "X3i",Reference = "Scenario1_b")
+# PlotGenerator(Comparison = "X3i",Reference = "Scenario3_e")
+# PlotGenerator(Comparison = "X3j",Reference = "Scenario0_b")
+# PlotGenerator(Comparison = "X3j",Reference = "Scenario1_b")
+# PlotGenerator(Comparison = "X3j",Reference = "Scenario3_h")
+# PlotGenerator(Comparison = "X3k",Reference = "X12b")
+# PlotGenerator(Comparison = "X3l",Reference = "X12b")
 # PlotGenerator(Comparison = "Scenario2_a",Reference = "Scenario3_e")
 # PlotGenerator(Comparison = "Scenario2_d",Reference = "Scenario3_h")
 # PlotGenerator(Comparison = "X10",Reference = "Scenario1_b")
@@ -702,6 +715,11 @@ BaselinePlotGenerator <- function(Reference = ReferenceScenarioColumn){
 # 
 # PlotGenerator(Comparison = "X7",Reference = "Baseline")
 # PlotGenerator(Comparison = "X8",Reference = "Scenario1_b")
+# PlotGenerator(Comparison = "X8",Reference = "Scenario3_e")
+# PlotGenerator(Comparison = "X8",Reference = "Scenario3_h")
+# PlotGenerator(Comparison = "X8b",Reference = "Scenario1_b")
+# PlotGenerator(Comparison = "X8b",Reference = "X3k")
+# PlotGenerator(Comparison = "X8b",Reference = "X3l")
 # PlotGenerator(Comparison = "X9a",Reference = "Baseline")
 # PlotGenerator(Comparison = "X9b",Reference = "Baseline")
 # PlotGenerator(Comparison = "X9c",Reference = "Baseline")
@@ -710,6 +728,10 @@ BaselinePlotGenerator <- function(Reference = ReferenceScenarioColumn){
 # PlotGenerator(Comparison = "Ton",Reference = "Baseline")
 # PlotGenerator(Comparison = "X12",Reference = "X6")
 # PlotGenerator(Comparison = "X13",Reference = "Baseline")
+
+# PlotGenerator(Comparison = "X12b",Reference = "X6")
+# PlotGenerator(Comparison = "X13b",Reference = "X13")
+
 
 #AbsolutePlotGenerator(Reference = "Baseline")
 #BaselinePlotGenerator(Reference = "Baseline") #This is the one that is used in the report
